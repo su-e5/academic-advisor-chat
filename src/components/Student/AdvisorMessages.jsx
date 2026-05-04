@@ -9,7 +9,6 @@ const AdvisorMessages = () => {
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [previousMessageCount, setPreviousMessageCount] = useState(0);
-  const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
   const intervalRef = useRef(null);
   const audioRef = useRef(null);
@@ -43,26 +42,30 @@ const AdvisorMessages = () => {
     const token = localStorage.getItem('token');
     
     try {
-      // جلب كل المحادثات وإيجاد محادثة المشرف
-      const convRes = await fetch('/api/Chat/conversations', {
+      const response = await fetch('/api/Chat/conversations', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const conversations = await convRes.json();
+      const conversations = await response.json();
       
       const advisorConv = conversations.find(c => 
         c.title === 'محادثة مع المشرف الأكاديمي'
       );
       
       if (advisorConv) {
-        setConversationId(advisorConv.id);
-        
         const msgRes = await fetch(`/api/Chat/conversations/${advisorConv.id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const convData = await msgRes.json();
         const newMessages = convData.messages || [];
         
-        if (newMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
+        // تصفية رسائل البوت
+        const filteredMessages = newMessages.filter(msg => 
+          msg.sender !== 'Bot' && 
+          msg.sender !== 'bot' &&
+          !msg.content?.includes('رد تجريبي من البوت')
+        );
+        
+        if (filteredMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
           if (audioRef.current) {
             audioRef.current.play().catch(e => console.log('Audio play failed:', e));
           }
@@ -70,8 +73,8 @@ const AdvisorMessages = () => {
         }
         
         if (isMounted.current) {
-          setPreviousMessageCount(newMessages.length);
-          setMessages(newMessages);
+          setPreviousMessageCount(filteredMessages.length);
+          setMessages(filteredMessages);
         }
       } else {
         setMessages([]);
@@ -88,18 +91,33 @@ const AdvisorMessages = () => {
 
   // تحديث دوري
   const updateMessages = async () => {
-    if (!isMounted.current || !conversationId) return;
+    if (!isMounted.current) return;
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`/api/Chat/conversations/${conversationId}`, {
+      const response = await fetch('/api/Chat/conversations', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) {
-        const convData = await response.json();
+      const conversations = await response.json();
+      
+      const advisorConv = conversations.find(c => 
+        c.title === 'محادثة مع المشرف الأكاديمي'
+      );
+      
+      if (advisorConv) {
+        const msgRes = await fetch(`/api/Chat/conversations/${advisorConv.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const convData = await msgRes.json();
         const newMessages = convData.messages || [];
         
-        if (newMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
+        const filteredMessages = newMessages.filter(msg => 
+          msg.sender !== 'Bot' && 
+          msg.sender !== 'bot' &&
+          !msg.content?.includes('رد تجريبي من البوت')
+        );
+        
+        if (filteredMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
           if (audioRef.current) {
             audioRef.current.play().catch(e => console.log('Audio play failed:', e));
           }
@@ -107,8 +125,8 @@ const AdvisorMessages = () => {
         }
         
         if (isMounted.current) {
-          setPreviousMessageCount(newMessages.length);
-          setMessages(newMessages);
+          setPreviousMessageCount(filteredMessages.length);
+          setMessages(filteredMessages);
         }
       }
     } catch (err) {
@@ -132,7 +150,7 @@ const AdvisorMessages = () => {
     };
   }, []);
 
-  // إرسال رسالة للمشرف
+  // إرسال رسالة للمشرف (بدون AI)
   const sendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
 
@@ -164,17 +182,15 @@ const AdvisorMessages = () => {
         body: JSON.stringify({ message: text })
       });
       
-      const data = await response.json();
-      
       if (response.ok) {
+        // ✅ من غير استدعاء response.json() - إزالة التحذير
         setMessages(prev => prev.map(m => 
-          m.id === tempMsg.id ? { ...m, status: 'sent', temp: false, serverId: data.messageId } : m
+          m.id === tempMsg.id ? { ...m, status: 'sent', temp: false } : m
         ));
         toast.success('Message sent to advisor');
-        
         setTimeout(() => updateMessages(), 500);
       } else {
-        throw new Error(data.error || 'Send failed');
+        throw new Error('Send failed');
       }
     } catch (err) {
       console.error('Error:', err);

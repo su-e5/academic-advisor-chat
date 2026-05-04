@@ -12,7 +12,6 @@ const StudentChatView = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
-  const [conversationId, setConversationId] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
   const intervalRef = useRef(null);
@@ -41,7 +40,7 @@ const StudentChatView = () => {
     audio.play().catch(e => console.log('Audio play failed:', e));
   };
 
-  // عرض إشعار للمشرف - مع استخدام messageCount
+  // عرض إشعار للمشرف
   const showNewMessageNotification = (studentName, messageCount) => {
     const messageText = messageCount === 1 
       ? `📩 New message from ${studentName || 'student'}!` 
@@ -61,53 +60,7 @@ const StudentChatView = () => {
     }, 5000);
   };
 
-  // البحث عن أو إنشاء Conversation ID
-  const findOrCreateConversation = async () => {
-    const token = localStorage.getItem('token');
-    
-    try {
-      const convRes = await fetch('/api/Chat/conversations', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const conversations = await convRes.json();
-      
-      for (const conv of conversations) {
-        const msgRes = await fetch(`/api/Chat/conversations/${conv.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (msgRes.ok) {
-          const convData = await msgRes.json();
-          const hasStudentMessages = convData.messages?.some(m => 
-            m.sender === 'User' || m.senderId === 'student'
-          );
-          if (hasStudentMessages || conv.title === 'محادثة مع المشرف الأكاديمي') {
-            return conv.id;
-          }
-        }
-      }
-      
-      const createRes = await fetch('/api/Chat/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          conversationId: null,
-          message: "محادثة مع المشرف الأكاديمي",
-          type: 'text'
-        })
-      });
-      const newConv = await createRes.json();
-      return newConv.conversationId || newConv.id;
-      
-    } catch (err) {
-      console.error('Error finding conversation:', err);
-      return null;
-    }
-  };
-
-  // تحميل المحادثة والتحقق من الرسائل الجديدة
+  // جلب المحادثة باستخدام endpoint المشرف
   const loadConversation = async () => {
     if (!studentId || !isMounted.current || isFetching.current) return;
     
@@ -126,36 +79,51 @@ const StudentChatView = () => {
         setStudent(studentData);
       }
       
-      // جلب أو إنشاء Conversation ID
-      const convId = await findOrCreateConversation();
-      if (convId && isMounted.current) {
-        setConversationId(convId);
+      // جلب المحادثة بدون AI - استخدام endpoint المشرف
+      const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (convRes.ok && isMounted.current) {
+        const conversations = await convRes.json();
         
-        const msgRes = await fetch(`/api/Chat/conversations/${convId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (msgRes.ok) {
-          const convData = await msgRes.json();
-          const currentMessages = convData.messages || [];
-          
-          // حساب عدد رسائل الطالب
-          const studentMessages = currentMessages.filter(m => 
-            m.sender === 'User' || m.senderId === 'student'
-          );
-          const previousStudentCount = parseInt(localStorage.getItem(`student_messages_${studentId}`) || '0');
-          
-          if (studentMessages.length > previousStudentCount && previousStudentCount > 0) {
-            const newMessagesCount = studentMessages.length - previousStudentCount;
-            showNewMessageNotification(studentData?.fullName, newMessagesCount);
-            setUnreadCount(prev => prev + newMessagesCount);
+        // استخراج الرسائل من المحادثات (بدون البوت)
+        let allMessages = [];
+        if (conversations && conversations.length > 0) {
+          for (const conv of conversations) {
+            if (conv.lastMessage) {
+              // استبعد رسائل البوت
+              const isBotMessage = conv.lastMessage.sender === 'Bot' || 
+                                   conv.lastMessage.sender === 'bot' ||
+                                   conv.lastMessage.content?.includes('رد تجريبي من البوت');
+              
+              if (!isBotMessage) {
+                allMessages.push({
+                  id: conv.lastMessage.id,
+                  content: conv.lastMessage.content,
+                  sender: conv.lastMessage.sender === 'Advisor' || conv.lastMessage.sender === 'advisor' ? 'Advisor' : 'Student',
+                  senderId: conv.lastMessage.sender === 'Advisor' ? 'advisor' : 'student',
+                  timestamp: conv.lastMessage.timestamp || conv.lastMessage.Timestamp
+                });
+              }
+            }
           }
-          
-          // حفظ العدد الحالي
-          localStorage.setItem(`chat_count_${studentId}`, currentMessages.length.toString());
-          localStorage.setItem(`student_messages_${studentId}`, studentMessages.length.toString());
-          
-          setMessages(currentMessages);
         }
+        
+        // حساب عدد رسائل الطالب الجديدة
+        const studentMessages = allMessages.filter(m => m.senderId === 'student');
+        const previousStudentCount = parseInt(localStorage.getItem(`student_messages_${studentId}`) || '0');
+        
+        if (studentMessages.length > previousStudentCount && previousStudentCount > 0) {
+          const newMessagesCount = studentMessages.length - previousStudentCount;
+          showNewMessageNotification(studentData?.fullName, newMessagesCount);
+          setUnreadCount(prev => prev + newMessagesCount);
+        }
+        
+        // حفظ العدد الحالي
+        localStorage.setItem(`student_messages_${studentId}`, studentMessages.length.toString());
+        
+        setMessages(allMessages);
       }
     } catch (err) {
       console.error('Error loading conversation:', err);
@@ -169,32 +137,49 @@ const StudentChatView = () => {
 
   // تحديث الرسائل دورياً (كل 5 ثواني)
   const updateMessages = async () => {
-    if (!isMounted.current || !conversationId) return;
+    if (!isMounted.current || !studentId) return;
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`/api/Chat/conversations/${conversationId}`, {
+      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok && isMounted.current) {
-        const convData = await response.json();
-        const currentMessages = convData.messages || [];
-        const currentStudentMessages = currentMessages.filter(m => 
-          m.sender === 'User' || m.senderId === 'student'
-        );
+        const conversations = await response.json();
         
+        let allMessages = [];
+        if (conversations && conversations.length > 0) {
+          for (const conv of conversations) {
+            if (conv.lastMessage) {
+              const isBotMessage = conv.lastMessage.sender === 'Bot' || 
+                                   conv.lastMessage.sender === 'bot' ||
+                                   conv.lastMessage.content?.includes('رد تجريبي من البوت');
+              
+              if (!isBotMessage) {
+                allMessages.push({
+                  id: conv.lastMessage.id,
+                  content: conv.lastMessage.content,
+                  sender: conv.lastMessage.sender === 'Advisor' ? 'Advisor' : 'Student',
+                  senderId: conv.lastMessage.sender === 'Advisor' ? 'advisor' : 'student',
+                  timestamp: conv.lastMessage.timestamp
+                });
+              }
+            }
+          }
+        }
+        
+        const studentMessages = allMessages.filter(m => m.senderId === 'student');
         const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
         const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
         
-        if (currentStudentMessages.length > prevStudentCount && prevStudentCount > 0) {
-          const newMessagesCount = currentStudentMessages.length - prevStudentCount;
+        if (studentMessages.length > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
+          const newMessagesCount = studentMessages.length - prevStudentCount;
           showNewMessageNotification(student?.fullName, newMessagesCount);
           setUnreadCount(prev => prev + newMessagesCount);
-          localStorage.setItem(`student_messages_${studentId}`, currentStudentMessages.length.toString());
+          localStorage.setItem(`student_messages_${studentId}`, studentMessages.length.toString());
         }
         
-        localStorage.setItem(`chat_count_${studentId}`, currentMessages.length.toString());
-        setMessages(currentMessages);
+        setMessages(allMessages);
       }
     } catch (err) {
       console.error('Update error:', err);
@@ -254,6 +239,7 @@ const StudentChatView = () => {
       });
       
       if (response.ok) {
+        // ❌ حذف const data = await response.json(); لأنه مش مستخدم
         toast.success('Message sent to student');
         setTimeout(() => updateMessages(), 500);
       } else {
