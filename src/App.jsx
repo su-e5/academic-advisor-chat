@@ -17,7 +17,8 @@ import Sidebar from "./components/Layout/Sidebar";
 import AdvisorAnalytics from "./components/Advisor/AdvisorAnalytics";
 import RegulationsView from "./components/Student/RegulationsView";
 import AdvisorMessages from "./components/Student/AdvisorMessages";
-
+import RegistrationForm from "./components/Student/RegistrationForm";
+import StudentRegistrations from "./components/Advisor/StudentRegistrations";
 
 import { FaBars } from "react-icons/fa";
 
@@ -113,8 +114,23 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
-              
+              <Route
+                path="/advisor/registrations"
+                element={
+                  <ProtectedRoute allowedRoles={["advisor", "admin"]}>
+                    <StudentRegistrations />
+                  </ProtectedRoute>
+                }
+              />
 
+              <Route
+                path="/registration"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <RegistrationForm />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/profile"
                 element={

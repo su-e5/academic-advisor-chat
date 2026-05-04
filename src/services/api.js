@@ -69,8 +69,14 @@ export const updateUserRole = (userId, role) => api.put(`/Admin/users/${userId}/
 // ✅ للطلاب والمشرفين (من Chat Controller)
 export const getRegulations = () => api.get('/Chat/regulations');
 export const getRegulationById = (id) => api.get(`/Chat/regulations/${id}`);
+export const submitRegistration = (formData) => api.post('/Registration/submit', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
-// ✅ للأدمن فقط (من Admin Controller) - نفس البيانات لكن مع صلاحيات تعديل
+export const getMyRegistrations = () => api.get('/Registration/my-registrations');
+
+export const getAllRegistrations = () => api.get('/Advisor/students/submitted-forms');
+
 export const getAdminRegulations = () => api.get('/Admin/regulations');
 export const createRegulation = (data) => api.post('/Admin/regulations', data);
 export const updateRegulation = (id, data) => api.put(`/Admin/regulations/${id}`, data);

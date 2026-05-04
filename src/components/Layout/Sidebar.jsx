@@ -3,7 +3,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { FaCommentDots } from 'react-icons/fa'
-import { FaHome, FaRobot, FaUser, FaUsers, FaBook, FaChartLine, FaTimes, FaGavel } from 'react-icons/fa';
+import { FaHome, FaRobot, FaUser, FaUsers, FaBook, FaChartLine, FaTimes, FaGavel , FaFileUpload } from 'react-icons/fa';
 
 const Sidebar = ({ onClose }) => {
   const { user } = useAuth();
@@ -24,6 +24,7 @@ const Sidebar = ({ onClose }) => {
       case 'student':
         return [
           { path: '/chat', label: 'AI Assistant', icon: FaRobot },
+              { path: '/registration', label: 'Registration', icon: FaFileUpload },
           { path: '/regulations', label: 'Regulations', icon: FaGavel },  // ✅ أضيفي Regulations للطالب
           { path: '/profile', label: 'Profile', icon: FaUser },
           { path: '/advisor-chat', label: 'Advisor Chat', icon: FaCommentDots },
