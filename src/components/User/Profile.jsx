@@ -9,6 +9,15 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [academicLevel, setAcademicLevel] = useState(user?.academicLevel || 1);
+
+
+  const academicLevels = [
+  { value: 1, label: "First Year - Level 1" },
+  { value: 2, label: "Second Year - Level 2" },
+  { value: 3, label: "Third Year - Level 3" },
+  { value: 4, label: "Fourth Year - Level 4" },
+];
   
   const [formData, setFormData] = useState({
     fullName: user?.fullName || user?.name || '',
@@ -21,6 +30,17 @@ const Profile = () => {
     newPassword: '',
     confirmPassword: ''
   });
+
+
+<select
+  value={academicLevel}
+  onChange={(e) => setAcademicLevel(parseInt(e.target.value))}
+  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+>
+  {academicLevels.map(level => (
+    <option key={level.value} value={level.value}>{level.label}</option>
+  ))}
+</select>
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();

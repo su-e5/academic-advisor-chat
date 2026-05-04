@@ -1,16 +1,26 @@
 // src/components/Advisor/StudentsList.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaComments, FaBell, FaUserGraduate, FaEnvelope, FaSpinner } from 'react-icons/fa';
+import { FaComments, FaBell, FaUserGraduate, FaEnvelope, FaSpinner, FaFilter } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentsList = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [filterLevel, setFilterLevel] = useState('all');
   const navigate = useNavigate();
 
-  // دالة حساب عدد الرسائل الجديدة لكل طالب - تعريفها قبل استخدامها
+  // المستويات الدراسية
+  const academicLevels = [
+    { value: 'all', label: 'All Levels' },
+    { value: 1, label: 'Level 1 - First Year' },
+    { value: 2, label: 'Level 2 - Second Year' },
+    { value: 3, label: 'Level 3 - Third Year' },
+    { value: 4, label: 'Level 4 - Fourth Year' },
+  ];
+
+  // دالة حساب عدد الرسائل الجديدة لكل طالب
   const updateUnreadCounts = useCallback(async (studentsList, token) => {
     const counts = {};
     for (const student of studentsList) {
@@ -50,7 +60,7 @@ const StudentsList = () => {
     return counts;
   }, []);
 
-  // دالة جلب الطلاب - تعريفها قبل استخدامها
+  // دالة جلب الطلاب
   const fetchStudents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -62,7 +72,6 @@ const StudentsList = () => {
         const data = await response.json();
         setStudents(data);
         
-        // حساب عدد الرسائل الجديدة
         const counts = await updateUnreadCounts(data, token);
         setUnreadCounts(counts);
       } else {
@@ -89,7 +98,7 @@ const StudentsList = () => {
     }
   }, [students, updateUnreadCounts]);
 
-  // ✅ استخدام useEffect بشكل آمن مع async function
+  // ✅ useEffect لتحميل البيانات
   useEffect(() => {
     let isMounted = true;
     
@@ -100,7 +109,6 @@ const StudentsList = () => {
     
     initialize();
     
-    // تحديث كل 5 ثواني
     const interval = setInterval(() => {
       if (isMounted) {
         updateUnread();
@@ -151,6 +159,11 @@ const StudentsList = () => {
     markMessagesAsRead(studentId);
     navigate(`/advisor/chat/${studentId}`);
   };
+
+  // تصفية الطلاب حسب المستوى
+  const filteredStudents = filterLevel === 'all' 
+    ? students 
+    : students.filter(s => s.academicLevel === filterLevel);
 
   // حساب الإحصائيات
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
@@ -211,6 +224,29 @@ const StudentsList = () => {
         </div>
       </div>
 
+      {/* Filter by Level */}
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <FaFilter className="text-gray-500" />
+          <span className="text-sm text-gray-600">Filter by level:</span>
+        </div>
+        <div className="flex gap-2">
+          {academicLevels.map(level => (
+            <button
+              key={level.value}
+              onClick={() => setFilterLevel(level.value)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+                filterLevel === level.value
+                  ? 'bg-green-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {level.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Students Table */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -227,8 +263,29 @@ const StudentsList = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {students.map((student) => {
+              {filteredStudents.map((student) => {
                 const unread = unreadCounts[student.id] || 0;
+                // ✅ تحديد لون المستوى
+                const getLevelColor = (level) => {
+                  switch(level) {
+                    case 1: return 'bg-blue-100 text-blue-700';
+                    case 2: return 'bg-green-100 text-green-700';
+                    case 3: return 'bg-yellow-100 text-yellow-700';
+                    case 4: return 'bg-red-100 text-red-700';
+                    default: return 'bg-gray-100 text-gray-700';
+                  }
+                };
+                
+                const getLevelLabel = (level) => {
+                  switch(level) {
+                    case 1: return 'Level 1 - First Year';
+                    case 2: return 'Level 2 - Second Year';
+                    case 3: return 'Level 3 - Third Year';
+                    case 4: return 'Level 4 - Fourth Year';
+                    default: return 'Level ' + level;
+                  }
+                };
+                
                 return (
                   <tr key={student.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -251,8 +308,8 @@ const StudentsList = () => {
                       <div className="text-sm text-gray-500">{student.department || '-'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">
-                        Level {student.academicLevel || 1}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getLevelColor(student.academicLevel)}`}>
+                        {getLevelLabel(student.academicLevel)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -289,10 +346,10 @@ const StudentsList = () => {
         </div>
       </div>
 
-      {students.length === 0 && (
+      {filteredStudents.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <FaUserGraduate className="text-5xl mx-auto mb-3 opacity-30" />
-          <p>No students assigned to you yet.</p>
+          <p>No students found for this level.</p>
         </div>
       )}
     </div>

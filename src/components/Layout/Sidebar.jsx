@@ -49,6 +49,24 @@ const Sidebar = ({ onClose }) => {
           </button>
         </div>
       )}
+
+      
+<div className="bg-blue-50 rounded-lg p-3">
+  <p className="text-sm text-blue-800 font-semibold">Welcome, {user?.fullName}</p>
+  <p className="text-xs text-blue-600 mt-1">
+    {user?.role === 'Student' ? 'Student' : user?.role === 'Advisor' ? 'Academic Advisor' : 'System Admin'}
+  </p>
+  {/* ✅ عرض المستوى الدراسي للطالب */}
+  {user?.role === 'Student' && user?.academicLevel && (
+    <p className="text-xs text-blue-600 mt-1">
+      Level: {user.academicLevel} - {
+        user.academicLevel === 1 ? 'First Year' :
+        user.academicLevel === 2 ? 'Second Year' :
+        user.academicLevel === 3 ? 'Third Year' : 'Fourth Year'
+      }
+    </p>
+  )}
+</div>
       
       <nav className="mt-4 flex-1 px-3">
         {menuItems.map((item) => (

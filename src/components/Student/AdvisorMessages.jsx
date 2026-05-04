@@ -1,6 +1,6 @@
 // src/components/Student/AdvisorMessages.jsx
 import { useState, useEffect, useRef } from 'react';
-import { FaUserTie, FaPaperPlane, FaSpinner, FaCommentDots, FaCheck, FaCheckDouble } from 'react-icons/fa';
+import { FaUserTie, FaPaperPlane, FaSpinner, FaCommentDots, FaCheck, FaCheckDouble, FaBell } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const AdvisorMessages = () => {
@@ -36,7 +36,7 @@ const AdvisorMessages = () => {
   }, []);
 
   // ✅ عرض إشعار للطالب عند وصول رسالة من المشرف
-  const showNewMessageNotification = (advisorName, messageCount) => {
+  const showNewMessageNotification = (messageCount) => {
     const messageText = messageCount === 1 
       ? `📩 New message from your academic advisor!` 
       : `📩 ${messageCount} new messages from your academic advisor!`;
@@ -81,14 +81,13 @@ const AdvisorMessages = () => {
         const convData = await msgRes.json();
         const newMessages = convData.messages || [];
         
-        // تصفية رسائل البوت
         const filteredMessages = newMessages.filter(msg => 
           msg.sender !== 'Bot' && 
           msg.sender !== 'bot' &&
           !msg.content?.includes('رد تجريبي من البوت')
         );
         
-        // ✅ حساب رسائل المشرف الجديدة
+        // حساب رسائل المشرف
         const advisorMessages = filteredMessages.filter(m => 
           m.sender === 'Advisor' || m.senderId === 'advisor'
         );
@@ -97,14 +96,12 @@ const AdvisorMessages = () => {
         const savedAdvisorCount = localStorage.getItem(`advisor_messages_count`);
         const prevAdvisorCount = savedAdvisorCount ? parseInt(savedAdvisorCount) : 0;
         
-        // ✅ إشعار للطالب عند وصول رسائل جديدة من المشرف
         if (advisorMessagesCount > prevAdvisorCount && prevAdvisorCount > 0 && isMounted.current) {
           const newCount = advisorMessagesCount - prevAdvisorCount;
-          showNewMessageNotification('Advisor', newCount);
+          showNewMessageNotification(newCount);
           setUnreadCount(prev => prev + newCount);
         }
         
-        // حفظ عدد رسائل المشرف
         localStorage.setItem(`advisor_messages_count`, advisorMessagesCount.toString());
         
         if (isMounted.current) {
@@ -164,7 +161,7 @@ const AdvisorMessages = () => {
         // ✅ إشعار للطالب عند وصول رسائل جديدة من المشرف
         if (advisorMessagesCount > prevAdvisorCount && prevAdvisorCount > 0 && isMounted.current) {
           const newCount = advisorMessagesCount - prevAdvisorCount;
-          showNewMessageNotification('Advisor', newCount);
+          showNewMessageNotification(newCount);
           setUnreadCount(prev => prev + newCount);
         }
         
@@ -172,7 +169,7 @@ const AdvisorMessages = () => {
         localStorage.setItem(`advisor_messages_count`, advisorMessagesCount.toString());
         
         if (filteredMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
-          if (audioRef.current) {
+          if (audioRef.current && advisorMessagesCount <= prevAdvisorCount) {
             audioRef.current.play().catch(e => console.log('Audio play failed:', e));
           }
         }
@@ -203,7 +200,7 @@ const AdvisorMessages = () => {
     };
   }, []);
 
-  // إرسال رسالة للمشرف (بدون AI)
+  // إرسال رسالة للمشرف
   const sendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
 
@@ -314,7 +311,7 @@ const AdvisorMessages = () => {
         </div>
         {unreadCount > 0 && (
           <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1">
-            <FaCommentDots size={12} />
+            <FaBell size={12} />
             {unreadCount}
           </div>
         )}
