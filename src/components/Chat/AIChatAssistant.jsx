@@ -78,41 +78,32 @@ const AIChatAssistant = () => {
   }, []);
 
   // دالة جلب المحادثات (منفصلة عشان نستخدمها في startNewChat)
-  const fetchConversations = async () => {
-    try {
-      const response = await getConversations();
-      const allConversations = response.data || [];
+const fetchConversations = async () => {
+  try {
+    const response = await getConversations();
+    const allConversations = response.data || [];
 
-      const chatbotConversations = allConversations.filter((conv) => {
-        const isAdvisorConversation =
-          conv.type === "advisor" ||
-          conv.isAdvisor === true ||
-          conv.title?.toLowerCase().includes("advisor") ||
-          conv.title?.toLowerCase().includes("مشرف") ||
-          conv.participantRole === "advisor";
-        return !isAdvisorConversation;
-      });
+    // ✅ عرض جميع المحادثات بدون أي تصفية
+    const formattedConversations = allConversations.map((conv, index) => ({
+      id: conv.id,
+      title: conv.title || `Conversation ${conv.id}`,
+      lastMessage: conv.lastMessage || conv.lastMessageContent || "No messages",
+      date: conv.updatedAt || conv.createdAt || conv.lastMessageAt || (() => {
+        const daysAgo = Math.min(index + 1, 30);
+        const date = new Date();
+        date.setDate(date.getDate() - daysAgo);
+        return date.toISOString();
+      })(),
+      preview: conv.preview || (conv.lastMessageContent ? conv.lastMessageContent.substring(0, 50) : "No messages"),
+    }));
 
-      const formattedConversations = chatbotConversations.map((conv, index) => ({
-        id: conv.id,
-        title: conv.title || `Conversation ${conv.id}`,
-        lastMessage: conv.lastMessage || conv.lastMessageContent || "No messages",
-        date: conv.updatedAt || conv.createdAt || conv.lastMessageAt || (() => {
-          const daysAgo = Math.min(index + 1, 30);
-          const date = new Date();
-          date.setDate(date.getDate() - daysAgo);
-          return date.toISOString();
-        })(),
-        preview: conv.preview || (conv.lastMessageContent ? conv.lastMessageContent.substring(0, 50) : "No messages"),
-      }));
-
-      setConversations(formattedConversations);
-    } catch (error) {
-      console.error("Failed to fetch conversations:", error);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
+    setConversations(formattedConversations);
+  } catch (error) {
+    console.error("Failed to fetch conversations:", error);
+  } finally {
+    setIsLoadingHistory(false);
+  }
+};
 
   // جلب المحادثات - تصفية محادثات المشرف (أول تحميل)
   useEffect(() => {
