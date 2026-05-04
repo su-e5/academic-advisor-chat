@@ -41,15 +41,21 @@ const StudentChatView = () => {
     audio.play().catch(e => console.log('Audio play failed:', e));
   };
 
-  // عرض إشعار للمشرف
+  // عرض إشعار للمشرف - مع استخدام messageCount
   const showNewMessageNotification = (studentName, messageCount) => {
-    toast.success(`📩 New message from ${studentName || 'student'}!`, {
+    const messageText = messageCount === 1 
+      ? `📩 New message from ${studentName || 'student'}!` 
+      : `📩 ${messageCount} new messages from ${studentName || 'student'}!`;
+    
+    toast.success(messageText, {
       duration: 5000,
       position: 'top-right',
       icon: '🔔'
     });
+    
     playNotificationSound();
-    document.title = `📩 New message from ${studentName || 'Student'} - UniGuide`;
+    
+    document.title = `📩 ${messageCount} new message${messageCount > 1 ? 's' : ''} from ${studentName || 'Student'} - UniGuide`;
     setTimeout(() => {
       document.title = 'UniGuide';
     }, 5000);
