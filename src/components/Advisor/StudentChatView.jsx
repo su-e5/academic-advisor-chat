@@ -1,5 +1,5 @@
 // src/components/Advisor/StudentChatView.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaBell } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -17,6 +17,7 @@ const StudentChatView = () => {
   const intervalRef = useRef(null);
   const isMounted = useRef(true);
   const isFetching = useRef(false);
+  const hasResetUnread = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,7 +62,7 @@ const StudentChatView = () => {
   };
 
   // جلب معلومات الطالب
-  const fetchStudentInfo = async () => {
+  const fetchStudentInfo = useCallback(async () => {
     const token = localStorage.getItem('token');
     try {
       const response = await fetch(`/api/Advisor/students/${studentId}`, {
@@ -78,10 +79,51 @@ const StudentChatView = () => {
       console.error('Error fetching student:', err);
     }
     return null;
-  };
+  }, [studentId]);
+
+  // ✅ إعادة تعيين عدد الرسائل غير المقروءة بعد فتح الشات
+  const resetUnreadCount = useCallback(async () => {
+    if (!studentId || hasResetUnread.current) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // جلب عدد رسائل الطالب الحالي
+      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const conversations = await response.json();
+        let totalStudentMessages = 0;
+        
+        for (const conv of conversations) {
+          const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (convDetailRes.ok) {
+            const convDetail = await convDetailRes.json();
+            const studentMsgCount = convDetail.messages?.filter(m => 
+              m.sender === 'User' || m.senderId === 'student'
+            ).length || 0;
+            totalStudentMessages += studentMsgCount;
+          }
+        }
+        
+        // حفظ العدد الجديد في localStorage
+        localStorage.setItem(`student_messages_${studentId}`, totalStudentMessages.toString());
+        setUnreadCount(0);
+        hasResetUnread.current = true;
+        
+        console.log(`Reset unread count for student ${studentId} to 0`);
+      }
+    } catch (err) {
+      console.error('Error resetting unread count:', err);
+    }
+  }, [studentId]);
 
   // جلب المحادثة من endpoint المشرف
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     if (!studentId || !isMounted.current || isFetching.current) return;
     
     isFetching.current = true;
@@ -89,8 +131,10 @@ const StudentChatView = () => {
     try {
       const token = localStorage.getItem('token');
       
-      // جلب معلومات الطالب
-      const studentData = await fetchStudentInfo();
+      // جلب معلومات الطالب (إذا لم تكن موجودة)
+      if (!student) {
+        await fetchStudentInfo();
+      }
       
       // جلب المحادثة باستخدام endpoint المشرف
       const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
@@ -104,7 +148,6 @@ const StudentChatView = () => {
         let allMessages = [];
         if (conversations && conversations.length > 0) {
           for (const conv of conversations) {
-            // جلب تفاصيل المحادثة للحصول على كل الرسائل
             const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -128,7 +171,7 @@ const StudentChatView = () => {
         // ترتيب الرسائل حسب الوقت
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
-        // ✅ حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
+        // حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
         const studentMessages = allMessages.filter(m => 
           m.senderId === 'student' && m.sender !== 'Advisor'
         );
@@ -137,23 +180,15 @@ const StudentChatView = () => {
         const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
         const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
         
-        // ✅ إشعار للمشرف عند وصول رسائل جديدة من الطالب
+        // إشعار للمشرف عند وصول رسائل جديدة من الطالب
         if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
           const newCount = studentMessagesCount - prevStudentCount;
-          showNewMessageNotification(studentData?.fullName, newCount);
+          showNewMessageNotification(student?.fullName, newCount);
           setUnreadCount(prev => prev + newCount);
         }
         
-        // ✅ حساب رسائل المشرف (اللي بعتها المشرف للطالب) - للإشعارات المستقبلية
-        const advisorMessages = allMessages.filter(m => 
-          m.senderId === 'advisor' || m.sender === 'Advisor'
-        );
-        const advisorMessagesCount = advisorMessages.length;
-        
-        // حفظ الأعداد
+        // حفظ العدد
         localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        localStorage.setItem(`advisor_messages_${studentId}`, advisorMessagesCount.toString());
-        localStorage.setItem(`chat_total_${studentId}`, allMessages.length.toString());
         
         setMessages(allMessages);
       }
@@ -165,10 +200,10 @@ const StudentChatView = () => {
         isFetching.current = false;
       }
     }
-  };
+  }, [studentId, student, fetchStudentInfo]);
 
   // تحديث الرسائل دورياً (كل 5 ثواني)
-  const updateMessages = async () => {
+  const updateMessages = useCallback(async () => {
     if (!isMounted.current || !studentId) return;
     const token = localStorage.getItem('token');
     
@@ -205,7 +240,7 @@ const StudentChatView = () => {
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
-        // ✅ حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
+        // حساب رسائل الطالب الجديدة
         const studentMessages = allMessages.filter(m => 
           m.senderId === 'student' && m.sender !== 'Advisor'
         );
@@ -214,37 +249,32 @@ const StudentChatView = () => {
         const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
         const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
         
-        // ✅ إشعار للمشرف عند وصول رسائل جديدة من الطالب
+        // إشعار للمشرف عند وصول رسائل جديدة من الطالب
         if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
           const newCount = studentMessagesCount - prevStudentCount;
           showNewMessageNotification(student?.fullName, newCount);
           setUnreadCount(prev => prev + newCount);
         }
         
-        // حساب رسائل المشرف
-        const advisorMessages = allMessages.filter(m => 
-          m.senderId === 'advisor' || m.sender === 'Advisor'
-        );
-        const advisorMessagesCount = advisorMessages.length;
-        
-        // حفظ الأعداد المحدثة
+        // حفظ العدد المحدث
         localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        localStorage.setItem(`advisor_messages_${studentId}`, advisorMessagesCount.toString());
-        localStorage.setItem(`chat_total_${studentId}`, allMessages.length.toString());
         
         setMessages(allMessages);
       }
     } catch (err) {
       console.error('Update error:', err);
     }
-  };
+  }, [studentId, student]);
 
+  // ✅ useEffect لتحميل المحادثة وتعيين الرسائل كمقروءة
   useEffect(() => {
     let isActive = true;
     
     const initialize = async () => {
       if (!isActive) return;
       await loadConversation();
+      // ✅ بعد تحميل المحادثة، إعادة تعيين عدد الرسائل غير المقروءة
+      await resetUnreadCount();
     };
     
     initialize();
@@ -259,7 +289,7 @@ const StudentChatView = () => {
       isActive = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [studentId]);
+  }, [studentId, loadConversation, updateMessages, resetUnreadCount]);
 
   // إرسال رسالة للطالب (بدون AI)
   const handleSendMessage = async () => {
@@ -294,9 +324,6 @@ const StudentChatView = () => {
       if (response.ok) {
         toast.success('Message sent to student');
         setTimeout(() => updateMessages(), 500);
-        
-        // إعادة تعيين عدد الرسائل غير المقروءة بعد الإرسال
-        setUnreadCount(0);
       } else {
         throw new Error('Send failed');
       }
