@@ -1,7 +1,7 @@
 // src/components/Advisor/StudentChatView.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaCheck } from 'react-icons/fa';
+import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaCheck, FaBell } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentChatView = () => {
@@ -13,6 +13,7 @@ const StudentChatView = () => {
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [ setConversationId] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
   const isMounted = useRef(true);
   const intervalRef = useRef(null);
@@ -34,7 +35,33 @@ const StudentChatView = () => {
     };
   }, []);
 
-  // دالة جلب المحادثة
+  // ✅ تشغيل صوت الإشعار
+  const playNotificationSound = () => {
+    const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+    audio.play().catch(e => console.log('Audio play failed:', e));
+  };
+
+  // ✅ عرض إشعار للمشرف عند وصول رسالة من الطالب
+  const showNewMessageNotification = (studentName, messageCount) => {
+    const messageText = messageCount === 1 
+      ? `📩 New message from ${studentName || 'student'}!` 
+      : `📩 ${messageCount} new messages from ${studentName || 'student'}!`;
+    
+    toast.success(messageText, {
+      duration: 5000,
+      position: 'top-right',
+      icon: '🔔'
+    });
+    
+    playNotificationSound();
+    
+    document.title = `📩 New message from ${studentName || 'Student'} - UniGuide`;
+    setTimeout(() => {
+      document.title = 'UniGuide';
+    }, 5000);
+  };
+
+  // جلب المحادثة
   const fetchConversation = async () => {
     if (!studentId || !isMounted.current || isFetching.current) return;
     
@@ -83,6 +110,23 @@ const StudentChatView = () => {
         }
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // ✅ حساب عدد رسائل الطالب الجديدة
+        const studentMessagesCount = allMessages.filter(m => 
+          m.senderId === 'student' && m.sender !== 'Advisor'
+        ).length;
+        
+        const savedCount = localStorage.getItem(`student_messages_${studentId}`);
+        const prevCount = savedCount ? parseInt(savedCount) : 0;
+        
+        if (studentMessagesCount > prevCount && prevCount > 0 && isMounted.current) {
+          const newCount = studentMessagesCount - prevCount;
+          showNewMessageNotification(student?.fullName, newCount);
+          setUnreadCount(prev => prev + newCount);
+        }
+        
+        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
+        
         setMessages(allMessages);
       }
     } catch (err) {
@@ -130,6 +174,23 @@ const StudentChatView = () => {
         }
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // ✅ حساب عدد رسائل الطالب الجديدة
+        const studentMessagesCount = allMessages.filter(m => 
+          m.senderId === 'student' && m.sender !== 'Advisor'
+        ).length;
+        
+        const savedCount = localStorage.getItem(`student_messages_${studentId}`);
+        const prevCount = savedCount ? parseInt(savedCount) : 0;
+        
+        if (studentMessagesCount > prevCount && prevCount > 0 && isMounted.current) {
+          const newCount = studentMessagesCount - prevCount;
+          showNewMessageNotification(student?.fullName, newCount);
+          setUnreadCount(prev => prev + newCount);
+        }
+        
+        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
+        
         setMessages(allMessages);
       }
     } catch (err) {
@@ -242,7 +303,7 @@ const StudentChatView = () => {
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <FaUserGraduate className="text-white text-lg" />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="font-semibold text-white">
             {student?.fullName || student?.name || `Student ${studentId}`}
           </h2>
@@ -250,6 +311,12 @@ const StudentChatView = () => {
             <p className="text-white/70 text-xs">{student.email}</p>
           )}
         </div>
+        {unreadCount > 0 && (
+          <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1">
+            <FaBell size={12} />
+            {unreadCount}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
