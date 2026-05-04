@@ -15,6 +15,7 @@ const AdvisorMessages = () => {
   const audioRef = useRef(null);
   const isMounted = useRef(true);
   const isFetching = useRef(false);
+  const hasResetUnread = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,7 +36,7 @@ const AdvisorMessages = () => {
     };
   }, []);
 
-  // ✅ عرض إشعار للطالب عند وصول رسالة من المشرف
+  // عرض إشعار للطالب عند وصول رسالة من المشرف
   const showNewMessageNotification = (messageCount) => {
     const messageText = messageCount === 1 
       ? `📩 New message from your academic advisor!` 
@@ -87,7 +88,6 @@ const AdvisorMessages = () => {
           !msg.content?.includes('رد تجريبي من البوت')
         );
         
-        // حساب رسائل المشرف
         const advisorMessages = filteredMessages.filter(m => 
           m.sender === 'Advisor' || m.senderId === 'advisor'
         );
@@ -149,7 +149,6 @@ const AdvisorMessages = () => {
           !msg.content?.includes('رد تجريبي من البوت')
         );
         
-        // ✅ حساب رسائل المشرف الجديدة
         const advisorMessages = filteredMessages.filter(m => 
           m.sender === 'Advisor' || m.senderId === 'advisor'
         );
@@ -158,14 +157,12 @@ const AdvisorMessages = () => {
         const savedAdvisorCount = localStorage.getItem(`advisor_messages_count`);
         const prevAdvisorCount = savedAdvisorCount ? parseInt(savedAdvisorCount) : 0;
         
-        // ✅ إشعار للطالب عند وصول رسائل جديدة من المشرف
         if (advisorMessagesCount > prevAdvisorCount && prevAdvisorCount > 0 && isMounted.current) {
           const newCount = advisorMessagesCount - prevAdvisorCount;
           showNewMessageNotification(newCount);
           setUnreadCount(prev => prev + newCount);
         }
         
-        // حفظ عدد رسائل المشرف
         localStorage.setItem(`advisor_messages_count`, advisorMessagesCount.toString());
         
         if (filteredMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
@@ -183,6 +180,28 @@ const AdvisorMessages = () => {
       console.error('Update error:', err);
     }
   };
+
+  // إعادة تعيين الإشعارات عند فتح الشات
+  const resetNotifications = () => {
+    setUnreadCount(0);
+    document.title = 'UniGuide';
+  };
+
+  // عند فتح الشات، نضبط الإشعارات
+  useEffect(() => {
+    if (!hasResetUnread.current) {
+      hasResetUnread.current = true;
+      resetNotifications();
+    }
+    
+    return () => {
+      // عند مغادرة الشات، نخزن آخر عدد للرسائل
+      const advisorMessagesCount = localStorage.getItem(`advisor_messages_count`);
+      if (advisorMessagesCount) {
+        // نحتفظ بالعدد كمرجع للجلسة القادمة
+      }
+    };
+  }, []);
 
   useEffect(() => {
     isMounted.current = true;
@@ -303,10 +322,10 @@ const AdvisorMessages = () => {
           <FaUserTie className="text-white text-lg" />
         </div>
         <div className="flex-1">
-          <h2 className="font-semibold text-white">Academic Advisor</h2>
+          <h2 className="font-semibold text-white text-lg">Academic Advisor</h2>
           <p className="text-white/70 text-xs flex items-center gap-1">
             <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-            Online • Typically responds within 24 hours
+            Online • Usually responds within 24 hours
           </p>
         </div>
         {unreadCount > 0 && (
@@ -333,10 +352,11 @@ const AdvisorMessages = () => {
               </div>
               {msgs.map((msg, idx) => {
                 const isAdvisor = msg.sender === 'Advisor' || msg.senderId === 'advisor';
+                const isNew = isAdvisor && !msg.isRead;
                 return (
                   <div key={msg.id || idx} className={`flex mb-3 ${isAdvisor ? 'justify-start' : 'justify-end'}`}>
                     <div className={`max-w-[70%] ${isAdvisor ? 'ml-2' : 'mr-2'}`}>
-                      <div className={`rounded-2xl px-4 py-2 shadow-sm ${isAdvisor ? 'bg-white text-gray-800 rounded-tl-none' : 'bg-[#dcf8c5] text-gray-800 rounded-tr-none'}`}>
+                      <div className={`rounded-2xl px-4 py-2 shadow-sm ${isAdvisor ? 'bg-white text-gray-800 rounded-tl-none' : 'bg-[#dcf8c5] text-gray-800 rounded-tr-none'} ${isNew ? 'border-l-4 border-blue-500' : ''}`}>
                         <p className="text-sm break-words">{msg.content}</p>
                         <div className={`text-[10px] mt-1 flex items-center gap-1 justify-end ${isAdvisor ? 'text-gray-400' : 'text-gray-500'}`}>
                           <span>{formatTime(msg.timestamp)}</span>
@@ -345,6 +365,7 @@ const AdvisorMessages = () => {
                             msg.status === 'sent' ? <FaCheck className="text-gray-400" size={10} /> :
                             <FaCheckDouble className="text-blue-500" size={10} />
                           )}
+                          {isNew && <span className="ml-2 text-blue-500 text-[10px]">● New</span>}
                         </div>
                       </div>
                     </div>
