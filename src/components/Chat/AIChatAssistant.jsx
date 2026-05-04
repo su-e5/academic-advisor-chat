@@ -78,7 +78,7 @@ const AIChatAssistant = () => {
     }
   }, []);
 
-  // دالة جلب المحادثات - حفظ جميع المحادثات
+  // دالة جلب المحادثات
   const fetchConversations = async () => {
     try {
       const response = await getConversations();
@@ -91,9 +91,9 @@ const AIChatAssistant = () => {
           
           try {
             const convDetail = await getConversation(conv.id);
-            const messages = convDetail.data?.messages || [];
+            const messagesList = convDetail.data?.messages || [];
             
-            const realMessages = messages.filter(msg => 
+            const realMessages = messagesList.filter(msg => 
               msg.sender !== 'Bot' && 
               msg.sender !== 'bot' &&
               !msg.content?.includes('رد تجريبي من البوت') &&
@@ -109,14 +109,14 @@ const AIChatAssistant = () => {
               lastMessageTime = lastMsg.timestamp;
             }
           } catch (err) {
-            console.error(`Error:`, err);
+            console.error(`Error fetching messages:`, err);
           }
           
           return {
             id: conv.id,
             title: conv.title || `Conversation ${conv.id}`,
             lastMessage: lastMessageText,
-            date: lastMessageTime || conv.updatedAt || conv.createdAt,
+            date: lastMessageTime || conv.updatedAt || conv.createdAt || new Date().toISOString(),
             preview: lastMessageText,
           };
         })
@@ -212,7 +212,7 @@ const AIChatAssistant = () => {
       const response = await sendMessageApi({
         conversationId: currentConversationId,
         message: currentMessage,
-        type: audioMessage ? "audio" : "text",
+        type: "text",
       });
 
       let aiResponse = "Thank you for your message.";
@@ -390,12 +390,14 @@ const AIChatAssistant = () => {
     }
   };
 
+  // ✅ دالة حذف المحادثة المعدلة
   const deleteConversation = async (conversationId, e) => {
     e.stopPropagation();
 
     if (window.confirm("Delete this conversation?")) {
       try {
         await deleteConversationApi(conversationId);
+        
         setConversations((prev) => prev.filter((c) => c.id !== conversationId));
 
         if (activeConversation === conversationId) {
@@ -411,12 +413,14 @@ const AIChatAssistant = () => {
           setActiveConversation(null);
           setConversationType("ai");
           setCurrentConversationId(null);
+          
+          await fetchConversations();
         }
 
-        toast.success("Conversation deleted");
+        toast.success("Conversation deleted successfully");
       } catch (error) {
         console.error("Failed to delete conversation:", error);
-        toast.error("Failed to delete conversation");
+        toast.error(error.response?.data?.message || "Failed to delete conversation");
       }
     }
   };
