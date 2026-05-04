@@ -12,6 +12,7 @@ const StudentChatView = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
+  // ❌ حذف conversationId لأنه مش مستخدم
   const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
   const intervalRef = useRef(null);
@@ -40,7 +41,7 @@ const StudentChatView = () => {
     audio.play().catch(e => console.log('Audio play failed:', e));
   };
 
-  // عرض إشعار للمشرف عند وصول رسالة من الطالب
+  // عرض إشعار للمشرف
   const showNewMessageNotification = (studentName, messageCount) => {
     const messageText = messageCount === 1 
       ? `📩 New message from ${studentName || 'student'}!` 
@@ -54,33 +55,13 @@ const StudentChatView = () => {
     
     playNotificationSound();
     
-    document.title = `📩 New message from ${studentName || 'Student'} - UniGuide`;
+    document.title = `📩 ${messageCount} new message${messageCount > 1 ? 's' : ''} from ${studentName || 'Student'} - UniGuide`;
     setTimeout(() => {
       document.title = 'UniGuide';
     }, 5000);
   };
 
-  // جلب معلومات الطالب
-  const fetchStudentInfo = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const response = await fetch(`/api/Advisor/students/${studentId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (isMounted.current) {
-          setStudent(data);
-        }
-        return data;
-      }
-    } catch (err) {
-      console.error('Error fetching student:', err);
-    }
-    return null;
-  };
-
-  // جلب المحادثة من endpoint المشرف
+  // جلب المحادثة باستخدام endpoint المشرف
   const loadConversation = async () => {
     if (!studentId || !isMounted.current || isFetching.current) return;
     
@@ -90,70 +71,58 @@ const StudentChatView = () => {
       const token = localStorage.getItem('token');
       
       // جلب معلومات الطالب
-      const studentData = await fetchStudentInfo();
+      const studentRes = await fetch(`/api/Advisor/students/${studentId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      let studentData = null;
+      if (studentRes.ok && isMounted.current) {
+        studentData = await studentRes.json();
+        setStudent(studentData);
+      }
       
-      // جلب المحادثة باستخدام endpoint المشرف
-      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+      // جلب المحادثة بدون AI - استخدام endpoint المشرف
+      const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      if (response.ok && isMounted.current) {
-        const conversations = await response.json();
+      if (convRes.ok && isMounted.current) {
+        const conversations = await convRes.json();
         
-        // استخراج جميع الرسائل من جميع المحادثات
+        // استخراج الرسائل من المحادثات (بدون البوت)
         let allMessages = [];
         if (conversations && conversations.length > 0) {
           for (const conv of conversations) {
-            // جلب تفاصيل المحادثة للحصول على كل الرسائل
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convDetail = await convDetailRes.json();
-              if (convDetail.messages && convDetail.messages.length > 0) {
-                const formattedMessages = convDetail.messages.map(msg => ({
-                  id: msg.id,
-                  content: msg.content,
-                  sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
-                  senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
-                  timestamp: msg.timestamp,
-                  isRead: msg.isRead || false
-                }));
-                allMessages = [...allMessages, ...formattedMessages];
+            if (conv.lastMessage) {
+              // استبعد رسائل البوت
+              const isBotMessage = conv.lastMessage.sender === 'Bot' || 
+                                   conv.lastMessage.sender === 'bot' ||
+                                   conv.lastMessage.content?.includes('رد تجريبي من البوت');
+              
+              if (!isBotMessage) {
+                allMessages.push({
+                  id: conv.lastMessage.id,
+                  content: conv.lastMessage.content,
+                  sender: conv.lastMessage.sender === 'Advisor' || conv.lastMessage.sender === 'advisor' ? 'Advisor' : 'Student',
+                  senderId: conv.lastMessage.sender === 'Advisor' ? 'advisor' : 'student',
+                  timestamp: conv.lastMessage.timestamp || conv.lastMessage.Timestamp
+                });
               }
             }
           }
         }
         
-        // ترتيب الرسائل حسب الوقت
-        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        // حساب عدد رسائل الطالب الجديدة
+        const studentMessages = allMessages.filter(m => m.senderId === 'student');
+        const previousStudentCount = parseInt(localStorage.getItem(`student_messages_${studentId}`) || '0');
         
-        // ✅ حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
-        const studentMessages = allMessages.filter(m => 
-          m.senderId === 'student' && m.sender !== 'Advisor'
-        );
-        const studentMessagesCount = studentMessages.length;
-        
-        const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
-        const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
-        
-        // ✅ إشعار للمشرف عند وصول رسائل جديدة من الطالب
-        if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
-          const newCount = studentMessagesCount - prevStudentCount;
-          showNewMessageNotification(studentData?.fullName, newCount);
-          setUnreadCount(prev => prev + newCount);
+        if (studentMessages.length > previousStudentCount && previousStudentCount > 0) {
+          const newMessagesCount = studentMessages.length - previousStudentCount;
+          showNewMessageNotification(studentData?.fullName, newMessagesCount);
+          setUnreadCount(prev => prev + newMessagesCount);
         }
         
-        // ✅ حساب رسائل المشرف (اللي بعتها المشرف للطالب) - للإشعارات المستقبلية
-        const advisorMessages = allMessages.filter(m => 
-          m.senderId === 'advisor' || m.sender === 'Advisor'
-        );
-        const advisorMessagesCount = advisorMessages.length;
-        
-        // حفظ الأعداد
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        localStorage.setItem(`advisor_messages_${studentId}`, advisorMessagesCount.toString());
-        localStorage.setItem(`chat_total_${studentId}`, allMessages.length.toString());
+        // حفظ العدد الحالي
+        localStorage.setItem(`student_messages_${studentId}`, studentMessages.length.toString());
         
         setMessages(allMessages);
       }
@@ -176,61 +145,40 @@ const StudentChatView = () => {
       const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
       if (response.ok && isMounted.current) {
         const conversations = await response.json();
         
         let allMessages = [];
         if (conversations && conversations.length > 0) {
           for (const conv of conversations) {
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convDetail = await convDetailRes.json();
-              if (convDetail.messages && convDetail.messages.length > 0) {
-                const formattedMessages = convDetail.messages.map(msg => ({
-                  id: msg.id,
-                  content: msg.content,
-                  sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
-                  senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
-                  timestamp: msg.timestamp,
-                  isRead: msg.isRead || false
-                }));
-                allMessages = [...allMessages, ...formattedMessages];
+            if (conv.lastMessage) {
+              const isBotMessage = conv.lastMessage.sender === 'Bot' || 
+                                   conv.lastMessage.sender === 'bot' ||
+                                   conv.lastMessage.content?.includes('رد تجريبي من البوت');
+              
+              if (!isBotMessage) {
+                allMessages.push({
+                  id: conv.lastMessage.id,
+                  content: conv.lastMessage.content,
+                  sender: conv.lastMessage.sender === 'Advisor' ? 'Advisor' : 'Student',
+                  senderId: conv.lastMessage.sender === 'Advisor' ? 'advisor' : 'student',
+                  timestamp: conv.lastMessage.timestamp
+                });
               }
             }
           }
         }
         
-        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // ✅ حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
-        const studentMessages = allMessages.filter(m => 
-          m.senderId === 'student' && m.sender !== 'Advisor'
-        );
-        const studentMessagesCount = studentMessages.length;
-        
+        const studentMessages = allMessages.filter(m => m.senderId === 'student');
         const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
         const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
         
-        // ✅ إشعار للمشرف عند وصول رسائل جديدة من الطالب
-        if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
-          const newCount = studentMessagesCount - prevStudentCount;
-          showNewMessageNotification(student?.fullName, newCount);
-          setUnreadCount(prev => prev + newCount);
+        if (studentMessages.length > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
+          const newMessagesCount = studentMessages.length - prevStudentCount;
+          showNewMessageNotification(student?.fullName, newMessagesCount);
+          setUnreadCount(prev => prev + newMessagesCount);
+          localStorage.setItem(`student_messages_${studentId}`, studentMessages.length.toString());
         }
-        
-        // حساب رسائل المشرف
-        const advisorMessages = allMessages.filter(m => 
-          m.senderId === 'advisor' || m.sender === 'Advisor'
-        );
-        const advisorMessagesCount = advisorMessages.length;
-        
-        // حفظ الأعداد المحدثة
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        localStorage.setItem(`advisor_messages_${studentId}`, advisorMessagesCount.toString());
-        localStorage.setItem(`chat_total_${studentId}`, allMessages.length.toString());
         
         setMessages(allMessages);
       }
@@ -261,7 +209,7 @@ const StudentChatView = () => {
     };
   }, [studentId]);
 
-  // إرسال رسالة للطالب (بدون AI)
+  // إرسال رسالة للطالب
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
     
@@ -292,11 +240,9 @@ const StudentChatView = () => {
       });
       
       if (response.ok) {
+        // ❌ حذف const data = await response.json(); لأنه مش مستخدم
         toast.success('Message sent to student');
         setTimeout(() => updateMessages(), 500);
-        
-        // إعادة تعيين عدد الرسائل غير المقروءة بعد الإرسال
-        setUnreadCount(0);
       } else {
         throw new Error('Send failed');
       }
