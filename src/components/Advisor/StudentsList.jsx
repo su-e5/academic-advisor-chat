@@ -11,7 +11,6 @@ const StudentsList = () => {
   const [filterLevel, setFilterLevel] = useState('all');
   const navigate = useNavigate();
 
-  // المستويات الدراسية
   const academicLevels = [
     { value: 'all', label: 'All Levels' },
     { value: 1, label: 'Level 1 - First Year' },
@@ -20,20 +19,20 @@ const StudentsList = () => {
     { value: 4, label: 'Level 4 - Fourth Year' },
   ];
 
-  // دالة حساب عدد الرسائل الجديدة لكل طالب
-  const updateUnreadCounts = useCallback(async (studentsList, token) => {
+  // ✅ دالة حساب عدد الرسائل الجديدة لكل طالب
+  const fetchUnreadCounts = useCallback(async (studentsList) => {
+    const token = localStorage.getItem('token');
     const counts = {};
+    
     for (const student of studentsList) {
-      const savedCount = localStorage.getItem(`student_messages_${student.id}`);
-      const prevCount = savedCount ? parseInt(savedCount) : 0;
-      
       try {
-        const convResponse = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
+        // جلب المحادثة
+        const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        if (convResponse.ok) {
-          const conversations = await convResponse.json();
+        if (convRes.ok) {
+          const conversations = await convRes.json();
           let totalStudentMessages = 0;
           
           for (const conv of conversations) {
@@ -42,13 +41,17 @@ const StudentsList = () => {
             });
             if (convDetailRes.ok) {
               const convDetail = await convDetailRes.json();
+              // ✅ حساب رسائل الطالب غير المقروءة
               const studentMsgCount = convDetail.messages?.filter(m => 
-                (m.sender === 'User' || m.senderId === 'student') && !m.isRead
+                (m.sender === 'Student' || m.senderId === 'student') && !m.isRead
               ).length || 0;
               totalStudentMessages += studentMsgCount;
             }
           }
           
+          // ✅ مقارنة مع العدد المحفوظ في localStorage
+          const savedCount = localStorage.getItem(`student_messages_${student.id}`);
+          const prevCount = savedCount ? parseInt(savedCount) : 0;
           const newCount = Math.max(0, totalStudentMessages - prevCount);
           counts[student.id] = newCount;
         }
@@ -57,6 +60,7 @@ const StudentsList = () => {
         counts[student.id] = 0;
       }
     }
+    
     return counts;
   }, []);
 
@@ -72,7 +76,7 @@ const StudentsList = () => {
         const data = await response.json();
         setStudents(data);
         
-        const counts = await updateUnreadCounts(data, token);
+        const counts = await fetchUnreadCounts(data);
         setUnreadCounts(counts);
       } else {
         toast.error('Failed to load students');
@@ -83,22 +87,16 @@ const StudentsList = () => {
     } finally {
       setLoading(false);
     }
-  }, [updateUnreadCounts]);
+  }, [fetchUnreadCounts]);
 
   // تحديث عدد الرسائل بشكل دوري
   const updateUnread = useCallback(async () => {
     if (students.length === 0) return;
     
-    try {
-      const token = localStorage.getItem('token');
-      const counts = await updateUnreadCounts(students, token);
-      setUnreadCounts(counts);
-    } catch (err) {
-      console.error('Error updating unread counts:', err);
-    }
-  }, [students, updateUnreadCounts]);
+    const newCounts = await fetchUnreadCounts(students);
+    setUnreadCounts(newCounts);
+  }, [students, fetchUnreadCounts]);
 
-  // ✅ useEffect لتحميل البيانات
   useEffect(() => {
     let isMounted = true;
     
@@ -126,12 +124,12 @@ const StudentsList = () => {
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+      const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      if (response.ok) {
-        const conversations = await response.json();
+      if (convRes.ok) {
+        const conversations = await convRes.json();
         let totalStudentMessages = 0;
         
         for (const conv of conversations) {
@@ -141,7 +139,7 @@ const StudentsList = () => {
           if (convDetailRes.ok) {
             const convDetail = await convDetailRes.json();
             const studentMsgCount = convDetail.messages?.filter(m => 
-              m.sender === 'User' || m.senderId === 'student'
+              (m.sender === 'Student' || m.senderId === 'student')
             ).length || 0;
             totalStudentMessages += studentMsgCount;
           }
@@ -265,7 +263,6 @@ const StudentsList = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredStudents.map((student) => {
                 const unread = unreadCounts[student.id] || 0;
-                // ✅ تحديد لون المستوى
                 const getLevelColor = (level) => {
                   switch(level) {
                     case 1: return 'bg-blue-100 text-blue-700';

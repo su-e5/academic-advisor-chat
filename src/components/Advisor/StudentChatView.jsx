@@ -1,7 +1,7 @@
 // src/components/Advisor/StudentChatView.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaCheck, FaBell } from 'react-icons/fa';
+import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaCheck } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentChatView = () => {
@@ -13,11 +13,11 @@ const StudentChatView = () => {
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [ setConversationId] = useState(null);
-  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
   const isMounted = useRef(true);
   const intervalRef = useRef(null);
   const isFetching = useRef(false);
+  const [ setUnreadCount] = useState(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,33 +35,7 @@ const StudentChatView = () => {
     };
   }, []);
 
-  // ✅ تشغيل صوت الإشعار
-  const playNotificationSound = () => {
-    const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
-    audio.play().catch(e => console.log('Audio play failed:', e));
-  };
-
-  // ✅ عرض إشعار للمشرف عند وصول رسالة من الطالب
-  const showNewMessageNotification = (studentName, messageCount) => {
-    const messageText = messageCount === 1 
-      ? `📩 New message from ${studentName || 'student'}!` 
-      : `📩 ${messageCount} new messages from ${studentName || 'student'}!`;
-    
-    toast.success(messageText, {
-      duration: 5000,
-      position: 'top-right',
-      icon: '🔔'
-    });
-    
-    playNotificationSound();
-    
-    document.title = `📩 New message from ${studentName || 'Student'} - UniGuide`;
-    setTimeout(() => {
-      document.title = 'UniGuide';
-    }, 5000);
-  };
-
-  // جلب المحادثة
+  // دالة جلب المحادثة
   const fetchConversation = async () => {
     if (!studentId || !isMounted.current || isFetching.current) return;
     
@@ -110,23 +84,6 @@ const StudentChatView = () => {
         }
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // ✅ حساب عدد رسائل الطالب الجديدة
-        const studentMessagesCount = allMessages.filter(m => 
-          m.senderId === 'student' && m.sender !== 'Advisor'
-        ).length;
-        
-        const savedCount = localStorage.getItem(`student_messages_${studentId}`);
-        const prevCount = savedCount ? parseInt(savedCount) : 0;
-        
-        if (studentMessagesCount > prevCount && prevCount > 0 && isMounted.current) {
-          const newCount = studentMessagesCount - prevCount;
-          showNewMessageNotification(student?.fullName, newCount);
-          setUnreadCount(prev => prev + newCount);
-        }
-        
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        
         setMessages(allMessages);
       }
     } catch (err) {
@@ -174,23 +131,6 @@ const StudentChatView = () => {
         }
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // ✅ حساب عدد رسائل الطالب الجديدة
-        const studentMessagesCount = allMessages.filter(m => 
-          m.senderId === 'student' && m.sender !== 'Advisor'
-        ).length;
-        
-        const savedCount = localStorage.getItem(`student_messages_${studentId}`);
-        const prevCount = savedCount ? parseInt(savedCount) : 0;
-        
-        if (studentMessagesCount > prevCount && prevCount > 0 && isMounted.current) {
-          const newCount = studentMessagesCount - prevCount;
-          showNewMessageNotification(student?.fullName, newCount);
-          setUnreadCount(prev => prev + newCount);
-        }
-        
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        
         setMessages(allMessages);
       }
     } catch (err) {
@@ -271,6 +211,45 @@ const StudentChatView = () => {
     }
   };
 
+  useEffect(() => {
+  const resetUnreadCount = async () => {
+    if (!studentId) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (convRes.ok) {
+        const conversations = await convRes.json();
+        let totalStudentMessages = 0;
+        
+        for (const conv of conversations) {
+          const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (convDetailRes.ok) {
+            const convDetail = await convDetailRes.json();
+            const studentMsgCount = convDetail.messages?.filter(m => 
+              (m.sender === 'Student' || m.senderId === 'student')
+            ).length || 0;
+            totalStudentMessages += studentMsgCount;
+          }
+        }
+        
+        localStorage.setItem(`student_messages_${studentId}`, totalStudentMessages.toString());
+        setUnreadCount(0);
+        console.log(`Reset unread count for student ${studentId} to 0`);
+      }
+    } catch (err) {
+      console.error('Error resetting unread count:', err);
+    }
+  };
+  
+  resetUnreadCount();
+}, [studentId]);
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -303,7 +282,7 @@ const StudentChatView = () => {
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <FaUserGraduate className="text-white text-lg" />
         </div>
-        <div className="flex-1">
+        <div>
           <h2 className="font-semibold text-white">
             {student?.fullName || student?.name || `Student ${studentId}`}
           </h2>
@@ -311,12 +290,6 @@ const StudentChatView = () => {
             <p className="text-white/70 text-xs">{student.email}</p>
           )}
         </div>
-        {unreadCount > 0 && (
-          <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1">
-            <FaBell size={12} />
-            {unreadCount}
-          </div>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
