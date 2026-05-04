@@ -1,7 +1,7 @@
 // src/components/Advisor/StudentChatView.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner } from 'react-icons/fa';
+import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaBell } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentChatView = () => {
@@ -12,8 +12,11 @@ const StudentChatView = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
+  const intervalRef = useRef(null);
   const isMounted = useRef(true);
+  const isFetching = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,75 +30,238 @@ const StudentChatView = () => {
     isMounted.current = true;
     return () => {
       isMounted.current = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
-  // ✅ جلب معلومات الطالب والمحادثة الخاصة به فقط
-  useEffect(() => {
-    const fetchConversation = async () => {
-      if (!studentId) return;
-      
-      try {
-        const token = localStorage.getItem('token');
-        
-        // 1. جلب معلومات الطالب الأساسية (اسمه، إيميله)
-        const studentsRes = await fetch('/api/Advisor/students', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (studentsRes.ok) {
-          const students = await studentsRes.json();
-          const foundStudent = students.find(s => s.id === parseInt(studentId));
-          if (isMounted.current && foundStudent) {
-            setStudent(foundStudent);
-          }
+  // تشغيل صوت الإشعار
+  const playNotificationSound = () => {
+    const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+    audio.play().catch(e => console.log('Audio play failed:', e));
+  };
+
+  // عرض إشعار للمشرف عند وصول رسالة من الطالب
+  const showNewMessageNotification = (studentName, messageCount) => {
+    const messageText = messageCount === 1 
+      ? `📩 New message from ${studentName || 'student'}!` 
+      : `📩 ${messageCount} new messages from ${studentName || 'student'}!`;
+    
+    toast.success(messageText, {
+      duration: 5000,
+      position: 'top-right',
+      icon: '🔔'
+    });
+    
+    playNotificationSound();
+    
+    document.title = `📩 New message from ${studentName || 'Student'} - UniGuide`;
+    setTimeout(() => {
+      document.title = 'UniGuide';
+    }, 5000);
+  };
+
+  // جلب معلومات الطالب
+  const fetchStudentInfo = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`/api/Advisor/students/${studentId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (isMounted.current) {
+          setStudent(data);
         }
+        return data;
+      }
+    } catch (err) {
+      console.error('Error fetching student:', err);
+    }
+    return null;
+  };
+
+  // جلب المحادثة من endpoint المشرف
+  const loadConversation = async () => {
+    if (!studentId || !isMounted.current || isFetching.current) return;
+    
+    isFetching.current = true;
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // جلب معلومات الطالب
+      const studentData = await fetchStudentInfo();
+      
+      // جلب المحادثة باستخدام endpoint المشرف
+      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok && isMounted.current) {
+        const conversations = await response.json();
         
-        // 2. جلب المحادثة الخاصة بهذا الطالب فقط
-        const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok && isMounted.current) {
-          const conversations = await response.json();
-          // الفكرة: نفترض أن المحادثة الأولى (أو الوحيدة) هي المحادثة المطلوبة
-          if (conversations && conversations.length > 0) {
-            // نجلب تفاصيل المحادثة الأولى (التي تحتوي على قائمة الرسائل)
-            const conversationId = conversations[0].id;
-            const conversationDetailRes = await fetch(`/api/Advisor/conversations/${conversationId}`, {
+        // استخراج جميع الرسائل من جميع المحادثات
+        let allMessages = [];
+        if (conversations && conversations.length > 0) {
+          for (const conv of conversations) {
+            // جلب تفاصيل المحادثة للحصول على كل الرسائل
+            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
-            
-            if (conversationDetailRes.ok) {
-              const conversationData = await conversationDetailRes.json();
-              // نتأكد من تصفية أي رسائل بوت قديمة للتأكد من النظافة
-              const filteredMessages = (conversationData.messages || []).filter(msg => 
-                msg.sender === 'Student' || msg.sender === 'Advisor'
-              );
-              setMessages(filteredMessages);
-            } else {
-              setMessages([]);
+            if (convDetailRes.ok) {
+              const convDetail = await convDetailRes.json();
+              if (convDetail.messages && convDetail.messages.length > 0) {
+                const formattedMessages = convDetail.messages.map(msg => ({
+                  id: msg.id,
+                  content: msg.content,
+                  sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
+                  senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
+                  timestamp: msg.timestamp,
+                  isRead: msg.isRead || false
+                }));
+                allMessages = [...allMessages, ...formattedMessages];
+              }
             }
-          } else {
-            // إذا لم يسبق لأحد أن أرسل رسالة، نبدأ بمصفوفة فارغة
-            setMessages([]);
           }
-        } else {
-          setMessages([]);
         }
-      } catch (err) {
-        console.error('Error loading conversation:', err);
-        toast.error('Failed to load conversation');
-      } finally {
-        if (isMounted.current) {
-          setLoading(false);
+        
+        // ترتيب الرسائل حسب الوقت
+        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // ✅ حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
+        const studentMessages = allMessages.filter(m => 
+          m.senderId === 'student' && m.sender !== 'Advisor'
+        );
+        const studentMessagesCount = studentMessages.length;
+        
+        const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
+        const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
+        
+        // ✅ إشعار للمشرف عند وصول رسائل جديدة من الطالب
+        if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
+          const newCount = studentMessagesCount - prevStudentCount;
+          showNewMessageNotification(studentData?.fullName, newCount);
+          setUnreadCount(prev => prev + newCount);
         }
+        
+        // ✅ حساب رسائل المشرف (اللي بعتها المشرف للطالب) - للإشعارات المستقبلية
+        const advisorMessages = allMessages.filter(m => 
+          m.senderId === 'advisor' || m.sender === 'Advisor'
+        );
+        const advisorMessagesCount = advisorMessages.length;
+        
+        // حفظ الأعداد
+        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
+        localStorage.setItem(`advisor_messages_${studentId}`, advisorMessagesCount.toString());
+        localStorage.setItem(`chat_total_${studentId}`, allMessages.length.toString());
+        
+        setMessages(allMessages);
       }
-    };
+    } catch (err) {
+      console.error('Error loading conversation:', err);
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+        isFetching.current = false;
+      }
+    }
+  };
 
-    fetchConversation();
+  // تحديث الرسائل دورياً (كل 5 ثواني)
+  const updateMessages = async () => {
+    if (!isMounted.current || !studentId) return;
+    const token = localStorage.getItem('token');
+    
+    try {
+      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok && isMounted.current) {
+        const conversations = await response.json();
+        
+        let allMessages = [];
+        if (conversations && conversations.length > 0) {
+          for (const conv of conversations) {
+            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (convDetailRes.ok) {
+              const convDetail = await convDetailRes.json();
+              if (convDetail.messages && convDetail.messages.length > 0) {
+                const formattedMessages = convDetail.messages.map(msg => ({
+                  id: msg.id,
+                  content: msg.content,
+                  sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
+                  senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
+                  timestamp: msg.timestamp,
+                  isRead: msg.isRead || false
+                }));
+                allMessages = [...allMessages, ...formattedMessages];
+              }
+            }
+          }
+        }
+        
+        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // ✅ حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
+        const studentMessages = allMessages.filter(m => 
+          m.senderId === 'student' && m.sender !== 'Advisor'
+        );
+        const studentMessagesCount = studentMessages.length;
+        
+        const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
+        const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
+        
+        // ✅ إشعار للمشرف عند وصول رسائل جديدة من الطالب
+        if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
+          const newCount = studentMessagesCount - prevStudentCount;
+          showNewMessageNotification(student?.fullName, newCount);
+          setUnreadCount(prev => prev + newCount);
+        }
+        
+        // حساب رسائل المشرف
+        const advisorMessages = allMessages.filter(m => 
+          m.senderId === 'advisor' || m.sender === 'Advisor'
+        );
+        const advisorMessagesCount = advisorMessages.length;
+        
+        // حفظ الأعداد المحدثة
+        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
+        localStorage.setItem(`advisor_messages_${studentId}`, advisorMessagesCount.toString());
+        localStorage.setItem(`chat_total_${studentId}`, allMessages.length.toString());
+        
+        setMessages(allMessages);
+      }
+    } catch (err) {
+      console.error('Update error:', err);
+    }
+  };
+
+  useEffect(() => {
+    let isActive = true;
+    
+    const initialize = async () => {
+      if (!isActive) return;
+      await loadConversation();
+    };
+    
+    initialize();
+    
+    intervalRef.current = setInterval(() => {
+      if (isActive) {
+        updateMessages();
+      }
+    }, 5000);
+    
+    return () => {
+      isActive = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [studentId]);
 
-  // ✅ إرسال رسالة إلى هذا الطالب بالذات
+  // إرسال رسالة للطالب (بدون AI)
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
     
@@ -103,7 +269,6 @@ const StudentChatView = () => {
     const messageText = inputMessage;
     setInputMessage('');
     
-    // إضافة مؤقتة للرسالة في الواجهة
     const tempMsg = {
       id: Date.now(),
       content: messageText,
@@ -117,7 +282,6 @@ const StudentChatView = () => {
     try {
       const token = localStorage.getItem('token');
       
-      // استدعاء الـ API الخاص بإرسال رسالة لطالب معين
       const response = await fetch(`/api/Advisor/students/${studentId}/send-message`, {
         method: 'POST',
         headers: {
@@ -128,41 +292,17 @@ const StudentChatView = () => {
       });
       
       if (response.ok) {
-        // نستبدل الرسالة المؤقتة بالرسالة النهائية (أو نضيفها فقط)
-        // سنقوم بإعادة جلب المحادثة بأكملها للحصول على الرسالة بصيغتها النهائية من السيرفر
-        toast.success('Message sent');
+        toast.success('Message sent to student');
+        setTimeout(() => updateMessages(), 500);
         
-        // تحديث المحادثة وعرض الرسالة الجديدة (ونحن نضمن أنها ليست من البوت)
-        const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (convRes.ok) {
-          const conversations = await convRes.json();
-          if (conversations && conversations.length > 0) {
-            const conversationId = conversations[0].id;
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conversationId}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convData = await convDetailRes.json();
-              const updatedMessages = (convData.messages || []).filter(msg => 
-                msg.sender === 'Student' || msg.sender === 'Advisor'
-              );
-              setMessages(updatedMessages);
-            }
-          }
-        }
-        // نجعل التمرير للأسفل بعد تحديث الرسائل
-        setTimeout(scrollToBottom, 100);
+        // إعادة تعيين عدد الرسائل غير المقروءة بعد الإرسال
+        setUnreadCount(0);
       } else {
-        // إذا فشل الإرسال، نزيل الرسالة المؤقتة ونخلي المستخدم يعيد كتابتها
-        toast.error('Failed to send message');
-        setMessages(prev => prev.filter(msg => msg.id !== tempMsg.id));
-        setInputMessage(messageText);
+        throw new Error('Send failed');
       }
     } catch (err) {
-      console.error('Error sending message:', err);
-      toast.error('Failed to send message');
+      console.error('Error:', err);
+      toast.error('Failed to send');
       setMessages(prev => prev.filter(msg => msg.id !== tempMsg.id));
       setInputMessage(messageText);
     } finally {
@@ -192,7 +332,7 @@ const StudentChatView = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-gradient-to-br from-gray-100 to-gray-200">
-      {/* Header - باقي كما هو */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-teal-600 px-4 py-3 flex items-center gap-3 shadow-md">
         <button
           onClick={() => navigate('/advisor')}
@@ -203,7 +343,7 @@ const StudentChatView = () => {
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <FaUserGraduate className="text-white text-lg" />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="font-semibold text-white">
             {student?.fullName || student?.name || `Student ${studentId}`}
           </h2>
@@ -211,6 +351,12 @@ const StudentChatView = () => {
             <p className="text-white/70 text-xs">{student.email}</p>
           )}
         </div>
+        {unreadCount > 0 && (
+          <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1">
+            <FaBell size={12} />
+            {unreadCount}
+          </div>
+        )}
       </div>
 
       {/* Messages Area */}
@@ -224,6 +370,7 @@ const StudentChatView = () => {
         ) : (
           messages.map((msg, idx) => {
             const isAdvisor = msg.senderId === 'advisor' || msg.sender === 'Advisor';
+            const isUnread = !isAdvisor && !msg.isRead;
             return (
               <div key={msg.id || idx} className={`flex mb-3 ${isAdvisor ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[70%] ${isAdvisor ? 'mr-2' : 'ml-2'}`}>
@@ -231,10 +378,11 @@ const StudentChatView = () => {
                     isAdvisor 
                       ? 'bg-[#dcf8c5] text-gray-800 rounded-tr-none' 
                       : 'bg-white text-gray-800 rounded-tl-none'
-                  }`}>
+                  } ${isUnread ? 'border-l-4 border-blue-500' : ''}`}>
                     <p className="text-sm break-words">{msg.content}</p>
                     <div className="text-[10px] text-gray-400 mt-1 text-right">
                       {formatTime(msg.timestamp)}
+                      {isUnread && <span className="ml-2 text-blue-500">● New</span>}
                     </div>
                   </div>
                 </div>
