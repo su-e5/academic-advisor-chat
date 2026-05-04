@@ -1,4 +1,7 @@
-// src/components/Admin/RegulationsManagement.jsx
+// ============================================
+// 1. src/components/Admin/RegulationsManagement.jsx (كامل - للأدمن)
+// ============================================
+
 import { useState, useEffect, useRef } from 'react';
 import { adminAPI } from '../../services/api';
 import { FaEdit, FaTrash, FaPlus, FaSearch, FaTimes } from 'react-icons/fa';
@@ -13,7 +16,8 @@ const RegulationsManagement = () => {
   const [formData, setFormData] = useState({
     question: '',
     answer: '',
-    category: 'Courses'  // ✅ changed from 'academic' to 'Courses'
+    category: 'Courses',
+    keywords: ''
   });
   
   const isMounted = useRef(true);
@@ -28,11 +32,13 @@ const RegulationsManagement = () => {
   useEffect(() => {
     const fetchRegulations = async () => {
       try {
+        // ✅ Admin فقط - يستخدم /api/Admin/regulations
         const response = await adminAPI.getRegulations();
         if (isMounted.current) {
           setRegulations(response.data);
         }
-      } catch {
+      } catch (err) {
+        console.error('Error fetching regulations:', err);
         if (isMounted.current) {
           toast.error('Failed to fetch regulations');
         }
@@ -49,21 +55,25 @@ const RegulationsManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // ✅ Prepare data in correct format for API
       const apiData = {
         question: formData.question,
         answer: formData.answer,
         category: formData.category,
-        keywords: ''
+        keywords: formData.keywords || '',
+        source: 'Admin'
       };
       
       if (editingRegulation) {
+        // ✅ تحديث regulation - /api/Admin/regulations/{id}
         await adminAPI.updateRegulation(editingRegulation.id, apiData);
         toast.success('Regulation updated');
       } else {
+        // ✅ إنشاء regulation جديد - /api/Admin/regulations
         await adminAPI.createRegulation(apiData);
         toast.success('Regulation created');
       }
+      
+      // إعادة جلب القائمة
       const response = await adminAPI.getRegulations();
       if (isMounted.current) {
         setRegulations(response.data);
@@ -81,13 +91,15 @@ const RegulationsManagement = () => {
   const deleteRegulation = async (id) => {
     if (window.confirm('Are you sure you want to delete this regulation?')) {
       try {
+        // ✅ حذف regulation - /api/Admin/regulations/{id}
         await adminAPI.deleteRegulation(id);
         const response = await adminAPI.getRegulations();
         if (isMounted.current) {
           setRegulations(response.data);
         }
         toast.success('Regulation deleted');
-      } catch {
+      } catch (err) {
+        console.error('Error deleting regulation:', err);
         if (isMounted.current) {
           toast.error('Failed to delete regulation');
         }
@@ -99,7 +111,8 @@ const RegulationsManagement = () => {
     setFormData({ 
       question: '', 
       answer: '', 
-      category: 'Courses'  // ✅ changed from 'academic' to 'Courses'
+      category: 'Courses',
+      keywords: ''
     });
     setEditingRegulation(null);
   };
@@ -110,7 +123,8 @@ const RegulationsManagement = () => {
       setFormData({
         question: regulation.question || regulation.title,
         answer: regulation.answer || regulation.content,
-        category: regulation.category
+        category: regulation.category,
+        keywords: regulation.keywords || ''
       });
     } else {
       resetForm();
@@ -123,19 +137,27 @@ const RegulationsManagement = () => {
     (reg.answer || reg.content)?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ✅ Updated category colors with correct API values
+  // ✅ الفئات المسموحة حسب الباك إند
+  const categories = [
+    'Courses',
+    'Registration',
+    'Grades',
+    'Dates',
+    'Rules',
+    'General'
+  ];
+
   const categoryColors = {
-    Courses: 'from-blue-500 to-blue-600',
-    Registration: 'from-green-500 to-green-600',
-    Grades: 'from-yellow-500 to-orange-600',
-    Dates: 'from-purple-500 to-purple-600',
-    Rules: 'from-red-500 to-red-600',
-    General: 'from-gray-500 to-gray-600'
+    Courses: 'bg-blue-100 text-blue-700',
+    Registration: 'bg-green-100 text-green-700',
+    Grades: 'bg-yellow-100 text-yellow-700',
+    Dates: 'bg-purple-100 text-purple-700',
+    Rules: 'bg-red-100 text-red-700',
+    General: 'bg-gray-100 text-gray-700'
   };
 
-  // ✅ Default color for unknown categories
   const getCategoryColor = (category) => {
-    return categoryColors[category] || 'from-gray-500 to-gray-600';
+    return categoryColors[category] || 'bg-gray-100 text-gray-700';
   };
 
   if (loading) {
@@ -148,7 +170,7 @@ const RegulationsManagement = () => {
 
   return (
     <div>
-      {/* Header with Add Button and Search */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="relative w-full sm:w-72">
           <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
@@ -169,7 +191,7 @@ const RegulationsManagement = () => {
         </button>
       </div>
 
-      {/* Regulations Grid - Responsive */}
+      {/* Regulations Grid */}
       {filteredRegulations.length === 0 ? (
         <div className="text-center py-12 text-gray-500 bg-white rounded-xl">
           No regulations found
@@ -184,7 +206,7 @@ const RegulationsManagement = () => {
                     <h3 className="font-semibold text-gray-800 text-base sm:text-lg">
                       {reg.question || reg.title}
                     </h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full bg-gradient-to-r ${getCategoryColor(reg.category)} text-white`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(reg.category)}`}>
                       {reg.category}
                     </span>
                   </div>
@@ -212,7 +234,7 @@ const RegulationsManagement = () => {
         </div>
       )}
 
-      {/* Modal - Responsive */}
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -245,13 +267,20 @@ const RegulationsManagement = () => {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 >
-                  <option value="Courses">Courses</option>
-                  <option value="Registration">Registration</option>
-                  <option value="Grades">Grades</option>
-                  <option value="Dates">Dates</option>
-                  <option value="Rules">Rules</option>
-                  <option value="General">General</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Keywords (optional)</label>
+                <input
+                  type="text"
+                  value={formData.keywords}
+                  onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
+                  placeholder="comma, separated, keywords"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Answer / Content</label>
@@ -286,4 +315,4 @@ const RegulationsManagement = () => {
   );
 };
 
-export default RegulationsManagement; 
+export default RegulationsManagement;

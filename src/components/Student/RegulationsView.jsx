@@ -1,6 +1,9 @@
-// src/components/Student/RegulationsView.jsx
+// ============================================
+// 2. src/components/Student/RegulationsView.jsx (كامل - للطالب)
+// ============================================
+
 import { useState, useEffect } from 'react';
-import { getRegulations } from '../../services/api';  // ✅ نفس الـ API
+import { getRegulations } from '../../services/api';
 import { FaSearch, FaBook, FaGraduationCap, FaCalendarAlt, FaGavel, FaQuestionCircle } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
@@ -13,12 +16,17 @@ const RegulationsView = () => {
   useEffect(() => {
     const fetchRegulations = async () => {
       try {
+        // ✅ الطالب يستخدم /api/Chat/regulations (من Chat Controller)
         const response = await getRegulations();
         console.log('Regulations fetched:', response.data);
         setRegulations(response.data || []);
       } catch (err) {
         console.error('Error fetching regulations:', err);
-        toast.error('Failed to load regulations');
+        if (err.response?.status === 403) {
+          toast.error('You do not have permission to view regulations');
+        } else {
+          toast.error('Failed to load regulations');
+        }
       } finally {
         setLoading(false);
       }
@@ -27,10 +35,10 @@ const RegulationsView = () => {
     fetchRegulations();
   }, []);
 
-  // Get unique categories
+  // استخراج الفئات الفريدة
   const categories = ['All', ...new Set(regulations.map(reg => reg.category))];
 
-  // Filter regulations
+  // تصفية اللوائح
   const filteredRegulations = regulations.filter(reg => {
     const matchesSearch = (reg.question || reg.title || '')
       .toLowerCase()

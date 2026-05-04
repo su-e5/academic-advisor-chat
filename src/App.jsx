@@ -18,6 +18,7 @@ import AdvisorAnalytics from "./components/Advisor/AdvisorAnalytics";
 import RegulationsView from "./components/Student/RegulationsView";
 import AdvisorMessages from "./components/Student/AdvisorMessages";
 
+
 import { FaBars } from "react-icons/fa";
 
 const AppContent = () => {
@@ -112,6 +113,7 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
+              
 
               <Route
                 path="/profile"

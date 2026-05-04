@@ -1,7 +1,4 @@
-// ============================================
-// 2. src/components/Advisor/StudentChatView.jsx (كامل)
-// ============================================
-
+// src/components/Advisor/StudentChatView.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner } from 'react-icons/fa';
@@ -15,9 +12,11 @@ const StudentChatView = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
+  const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
   const intervalRef = useRef(null);
   const isMounted = useRef(true);
+  const isFetching = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,48 +34,65 @@ const StudentChatView = () => {
     };
   }, []);
 
-  // ✅ استخدام نفس Conversation ID (37)
-  const ADVISOR_CONVERSATION_ID = 37;
-
-  // ✅ جلب المحادثة
-  const fetchConversation = async () => {
-    if (!studentId || !isMounted.current) return;
+  // جلب المحادثة ومعلومات الطالب
+  const loadData = async () => {
+    if (!studentId || !isMounted.current || isFetching.current) return;
+    
+    isFetching.current = true;
     
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`/api/Chat/conversations/${ADVISOR_CONVERSATION_ID}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok && isMounted.current) {
-        const convData = await response.json();
-        setMessages(convData.messages || []);
-      }
-      
-      // جلب معلومات الطالب
+      // 1. جلب معلومات الطالب
       const studentsRes = await fetch('/api/Advisor/students', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (studentsRes.ok && isMounted.current) {
+      if (studentsRes.ok) {
         const students = await studentsRes.json();
         const foundStudent = students.find(s => s.id === parseInt(studentId));
-        if (foundStudent) setStudent(foundStudent);
+        if (foundStudent && isMounted.current) {
+          setStudent(foundStudent);
+        }
+      }
+      
+      // 2. جلب محادثة المشرف
+      const convRes = await fetch('/api/Chat/conversations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const conversations = await convRes.json();
+      
+      const advisorConv = conversations.find(c => 
+        c.title === 'محادثة مع المشرف الأكاديمي'
+      );
+      
+      if (advisorConv && isMounted.current) {
+        setConversationId(advisorConv.id);
+        
+        const msgRes = await fetch(`/api/Chat/conversations/${advisorConv.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const convData = await msgRes.json();
+        setMessages(convData.messages || []);
+      } else if (isMounted.current) {
+        setMessages([]);
       }
     } catch (err) {
-      console.error('Error loading conversation:', err);
+      console.error('Error loading data:', err);
     } finally {
-      if (isMounted.current) setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+        isFetching.current = false;
+      }
     }
   };
 
-  // ✅ تحديث الرسائل دورياً
+  // تحديث الرسائل دورياً
   const updateMessages = async () => {
-    if (!isMounted.current) return;
+    if (!isMounted.current || !conversationId) return;
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`/api/Chat/conversations/${ADVISOR_CONVERSATION_ID}`, {
+      const response = await fetch(`/api/Chat/conversations/${conversationId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok && isMounted.current) {
@@ -88,13 +104,12 @@ const StudentChatView = () => {
     }
   };
 
-  // ✅ useEffect للتحميل الأولي
   useEffect(() => {
     let isActive = true;
     
     const initialize = async () => {
       if (!isActive) return;
-      await fetchConversation();
+      await loadData();
     };
     
     initialize();
@@ -111,7 +126,7 @@ const StudentChatView = () => {
     };
   }, [studentId]);
 
-  // ✅ إرسال رسالة (بدون AI)
+  // إرسال رسالة للطالب
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
     
@@ -132,7 +147,6 @@ const StudentChatView = () => {
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ استخدام endpoint خاص بالمشرف بدون AI
       const response = await fetch(`/api/Advisor/students/${studentId}/send-message`, {
         method: 'POST',
         headers: {
@@ -142,11 +156,13 @@ const StudentChatView = () => {
         body: JSON.stringify(messageText)
       });
       
+      const data = await response.json();
+      
       if (response.ok) {
         toast.success('Message sent to student');
-        await updateMessages();
+        setTimeout(() => updateMessages(), 500);
       } else {
-        throw new Error('Send failed');
+        throw new Error(data.error || 'Send failed');
       }
     } catch (err) {
       console.error('Error:', err);
@@ -180,6 +196,7 @@ const StudentChatView = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-gradient-to-br from-gray-100 to-gray-200">
+      {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-teal-600 px-4 py-3 flex items-center gap-3 shadow-md">
         <button
           onClick={() => navigate('/advisor')}
@@ -200,6 +217,7 @@ const StudentChatView = () => {
         </div>
       </div>
 
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
@@ -231,6 +249,7 @@ const StudentChatView = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input Area */}
       <div className="p-3 bg-white border-t">
         <div className="flex gap-2 items-end">
           <textarea

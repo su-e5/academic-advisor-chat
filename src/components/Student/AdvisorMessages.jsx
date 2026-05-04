@@ -9,6 +9,7 @@ const AdvisorMessages = () => {
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [previousMessageCount, setPreviousMessageCount] = useState(0);
+  const [conversationId, setConversationId] = useState(null);
   const messagesEndRef = useRef(null);
   const intervalRef = useRef(null);
   const audioRef = useRef(null);
@@ -23,6 +24,7 @@ const AdvisorMessages = () => {
     scrollToBottom();
   }, [messages]);
 
+  // تحميل الصوت للإشعارات
   useEffect(() => {
     audioRef.current = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
     return () => {
@@ -33,8 +35,7 @@ const AdvisorMessages = () => {
     };
   }, []);
 
-  const ADVISOR_CONVERSATION_ID = 37;
-
+  // جلب المحادثة
   const loadConversation = async () => {
     if (!isMounted.current || isFetching.current) return;
     
@@ -42,12 +43,23 @@ const AdvisorMessages = () => {
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`/api/Chat/conversations/${ADVISOR_CONVERSATION_ID}`, {
+      // جلب كل المحادثات وإيجاد محادثة المشرف
+      const convRes = await fetch('/api/Chat/conversations', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      const conversations = await convRes.json();
       
-      if (response.ok) {
-        const convData = await response.json();
+      const advisorConv = conversations.find(c => 
+        c.title === 'محادثة مع المشرف الأكاديمي'
+      );
+      
+      if (advisorConv) {
+        setConversationId(advisorConv.id);
+        
+        const msgRes = await fetch(`/api/Chat/conversations/${advisorConv.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const convData = await msgRes.json();
         const newMessages = convData.messages || [];
         
         if (newMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
@@ -61,7 +73,7 @@ const AdvisorMessages = () => {
           setPreviousMessageCount(newMessages.length);
           setMessages(newMessages);
         }
-      } else if (response.status === 404 && isMounted.current) {
+      } else {
         setMessages([]);
       }
     } catch (err) {
@@ -74,12 +86,13 @@ const AdvisorMessages = () => {
     }
   };
 
+  // تحديث دوري
   const updateMessages = async () => {
-    if (!isMounted.current) return;
+    if (!isMounted.current || !conversationId) return;
     const token = localStorage.getItem('token');
     
     try {
-      const response = await fetch(`/api/Chat/conversations/${ADVISOR_CONVERSATION_ID}`, {
+      const response = await fetch(`/api/Chat/conversations/${conversationId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -119,7 +132,7 @@ const AdvisorMessages = () => {
     };
   }, []);
 
-  // ✅ إرسال رسالة - النسخة النهائية
+  // إرسال رسالة للمشرف
   const sendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
 
@@ -142,41 +155,26 @@ const AdvisorMessages = () => {
     const token = localStorage.getItem('token');
     
     try {
-      // ✅ استخدام /api/Chat/send مع conversationId ثابت
-      const response = await fetch('/api/Chat/send', {
+      const response = await fetch('/api/Chat/send-to-advisor', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          conversationId: ADVISOR_CONVERSATION_ID,
-          message: text,
-          type: 'text'
-        })
+        body: JSON.stringify({ message: text })
       });
       
       const data = await response.json();
-      console.log('Send response:', data);
       
       if (response.ok) {
         setMessages(prev => prev.map(m => 
-          m.id === tempMsg.id ? { ...m, status: 'sent', temp: false, serverId: data.id } : m
+          m.id === tempMsg.id ? { ...m, status: 'sent', temp: false, serverId: data.messageId } : m
         ));
-        toast.success('Message sent');
+        toast.success('Message sent to advisor');
         
-        // جلب المحادثة كاملة
-        setTimeout(async () => {
-          const convRes = await fetch(`/api/Chat/conversations/${ADVISOR_CONVERSATION_ID}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (convRes.ok) {
-            const convData = await convRes.json();
-            setMessages(convData.messages || []);
-          }
-        }, 500);
+        setTimeout(() => updateMessages(), 500);
       } else {
-        throw new Error(data.message || 'Send failed');
+        throw new Error(data.error || 'Send failed');
       }
     } catch (err) {
       console.error('Error:', err);
@@ -234,6 +232,7 @@ const AdvisorMessages = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-gradient-to-br from-gray-100 to-gray-200">
+      {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-teal-600 px-4 py-3 flex items-center gap-3 shadow-md">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <FaUserTie className="text-white text-lg" />
@@ -247,6 +246,7 @@ const AdvisorMessages = () => {
         </div>
       </div>
 
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 py-12">
@@ -286,6 +286,7 @@ const AdvisorMessages = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input Area */}
       <div className="p-3 bg-white border-t">
         <div className="flex gap-2 items-end">
           <textarea
