@@ -32,6 +32,13 @@ const StudentChatView = () => {
     };
   }, []);
 
+  useEffect(() => {
+  if (studentId && messages.length > 0) {
+    // حفظ عدد الرسائل الحالي
+    localStorage.setItem(`student_messages_${studentId}`, messages.length.toString());
+  }
+}, [studentId, messages]);
+
   // جلب المحادثة
   const fetchConversation = async () => {
     if (!studentId) return;

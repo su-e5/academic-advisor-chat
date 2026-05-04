@@ -1,5 +1,5 @@
 // src/components/Advisor/StudentsList.jsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaComments, FaBell, FaUserGraduate, FaEnvelope, FaSpinner, FaFilter } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -19,52 +19,18 @@ const StudentsList = () => {
     { value: 4, label: 'Level 4 - Fourth Year' },
   ];
 
-  // دالة جلب عدد الرسائل الجديدة
-  const getUnreadCounts = useCallback(async (studentsList) => {
-    const token = localStorage.getItem('token');
+  // جلب عدد الرسائل غير المقروءة من localStorage
+  const loadUnreadCounts = () => {
     const counts = {};
-    
-    for (const student of studentsList) {
-      try {
-        const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (convRes.ok) {
-          const conversations = await convRes.json();
-          let totalStudentMessages = 0;
-          
-          for (const conv of conversations) {
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convDetail = await convDetailRes.json();
-              const studentMsgCount = convDetail.messages?.filter(m => 
-                (m.sender === 'Student' || m.senderId === 'student')
-              ).length || 0;
-              totalStudentMessages += studentMsgCount;
-            }
-          }
-          
-          const savedCount = localStorage.getItem(`student_messages_${student.id}`);
-          const prevCount = savedCount ? parseInt(savedCount) : 0;
-          const newCount = Math.max(0, totalStudentMessages - prevCount);
-          counts[student.id] = newCount;
-        } else {
-          counts[student.id] = 0;
-        }
-      } catch (err) {
-        console.error(`Error:`, err);
-        counts[student.id] = 0;
-      }
+    for (const student of students) {
+      const saved = localStorage.getItem(`student_messages_${student.id}`);
+      counts[student.id] = saved ? parseInt(saved) : 0;
     }
-    
-    return counts;
-  }, []);
+    setUnreadCounts(counts);
+  };
 
-  // دالة جلب الطلاب
-  const fetchStudents = useCallback(async () => {
+  // جلب الطلاب
+  const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/Advisor/students', {
@@ -74,56 +40,34 @@ const StudentsList = () => {
       if (response.ok) {
         const data = await response.json();
         setStudents(data);
-        
-        const counts = await getUnreadCounts(data);
-        setUnreadCounts(counts);
-      } else {
-        toast.error('Failed to load students');
+        loadUnreadCounts();
       }
     } catch (err) {
-      console.error('Error fetching students:', err);
+      console.error('Error:', err);
       toast.error('Failed to load students');
     } finally {
       setLoading(false);
     }
-  }, [getUnreadCounts]);
+  };
 
-  // ✅ تحديث عدد الرسائل كل 5 ثواني (منفصل عن التحميل الأولي)
+  // تحميل أولي
   useEffect(() => {
-    let isMounted = true;
-    
-    const updateUnread = async () => {
-      if (students.length > 0 && isMounted) {
-        const newCounts = await getUnreadCounts(students);
-        if (isMounted) setUnreadCounts(newCounts);
-      }
-    };
-    
-    const interval = setInterval(updateUnread, 5000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [students, getUnreadCounts]);
-
-  // ✅ التحميل الأولي - استخدام async function داخل useEffect
-  useEffect(() => {
-    let isMounted = true;
-    
-    const initialize = async () => {
-      if (!isMounted) return;
+    const init = async () => {
       await fetchStudents();
     };
+    init();
     
-    initialize();
+    // تحديث كل 3 ثواني
+    const interval = setInterval(() => {
+      loadUnreadCounts();
+    }, 3000);
     
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchStudents]);
+    return () => clearInterval(interval);
+  }, [students.length]);
 
-  // تحديث عند فتح الشات
+  // عند الضغط على Chat، نخفي النوتفيكيشن
   const handleChatClick = (studentId) => {
+    localStorage.setItem(`student_messages_${studentId}`, '0');
     setUnreadCounts(prev => ({ ...prev, [studentId]: 0 }));
     navigate(`/advisor/chat/${studentId}`);
   };
@@ -145,10 +89,8 @@ const StudentsList = () => {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">My Students</h1>
-        <p className="text-gray-500">Manage and communicate with your students</p>
-      </div>
+      <h1 className="text-2xl font-bold text-gray-800 mb-2">My Students</h1>
+      <p className="text-gray-500 mb-6">Manage and communicate with your students</p>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
