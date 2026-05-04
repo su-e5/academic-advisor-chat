@@ -1,7 +1,7 @@
 // src/components/Advisor/StudentChatView.jsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner, FaBell } from 'react-icons/fa';
+import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentChatView = () => {
@@ -12,12 +12,9 @@ const StudentChatView = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
-  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
-  const intervalRef = useRef(null);
   const isMounted = useRef(true);
-  const isFetching = useRef(false);
-  const hasResetUnread = useRef(false);
+  const intervalRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,263 +32,112 @@ const StudentChatView = () => {
     };
   }, []);
 
-  // تشغيل صوت الإشعار
-  const playNotificationSound = () => {
-    const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
-    audio.play().catch(e => console.log('Audio play failed:', e));
+  // ✅ تصفية رسائل البوت
+  const filterBotMessages = (messagesList) => {
+    return messagesList.filter(msg => 
+      msg.sender !== 'Bot' && 
+      msg.sender !== 'bot' &&
+      msg.sender !== 'Assistant' &&
+      msg.sender !== 'assistant' &&
+      msg.senderId !== 'bot' &&
+      !msg.content?.includes('رد تجريبي من البوت') &&
+      !msg.content?.includes('شكراً لرسالتك') &&
+      !msg.content?.includes('--- Conversation saved ---') &&
+      !msg.content?.includes('--- New conversation started ---')
+    );
   };
 
-  // عرض إشعار للمشرف عند وصول رسالة من الطالب
-  const showNewMessageNotification = (studentName, messageCount) => {
-    const messageText = messageCount === 1 
-      ? `📩 New message from ${studentName || 'student'}!` 
-      : `📩 ${messageCount} new messages from ${studentName || 'student'}!`;
-    
-    toast.success(messageText, {
-      duration: 5000,
-      position: 'top-right',
-      icon: '🔔'
-    });
-    
-    playNotificationSound();
-    
-    document.title = `📩 New message from ${studentName || 'Student'} - UniGuide`;
-    setTimeout(() => {
-      document.title = 'UniGuide';
-    }, 5000);
-  };
-
-  // جلب معلومات الطالب
-  const fetchStudentInfo = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const response = await fetch(`/api/Advisor/students/${studentId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (isMounted.current) {
-          setStudent(data);
-        }
-        return data;
-      }
-    } catch (err) {
-      console.error('Error fetching student:', err);
-    }
-    return null;
-  }, [studentId]);
-
-  // ✅ إعادة تعيين عدد الرسائل غير المقروءة بعد فتح الشات
-  const resetUnreadCount = useCallback(async () => {
-    if (!studentId || hasResetUnread.current) return;
-    
-    try {
-      const token = localStorage.getItem('token');
-      
-      // جلب عدد رسائل الطالب الحالي
-      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const conversations = await response.json();
-        let totalStudentMessages = 0;
-        
-        for (const conv of conversations) {
-          const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (convDetailRes.ok) {
-            const convDetail = await convDetailRes.json();
-            const studentMsgCount = convDetail.messages?.filter(m => 
-              m.sender === 'User' || m.senderId === 'student'
-            ).length || 0;
-            totalStudentMessages += studentMsgCount;
-          }
-        }
-        
-        // حفظ العدد الجديد في localStorage
-        localStorage.setItem(`student_messages_${studentId}`, totalStudentMessages.toString());
-        setUnreadCount(0);
-        hasResetUnread.current = true;
-        
-        console.log(`Reset unread count for student ${studentId} to 0`);
-      }
-    } catch (err) {
-      console.error('Error resetting unread count:', err);
-    }
-  }, [studentId]);
-
-  // جلب المحادثة من endpoint المشرف
-  const loadConversation = useCallback(async () => {
-    if (!studentId || !isMounted.current || isFetching.current) return;
-    
-    isFetching.current = true;
-    
-    try {
-      const token = localStorage.getItem('token');
-      
-      // جلب معلومات الطالب (إذا لم تكن موجودة)
-      if (!student) {
-        await fetchStudentInfo();
-      }
-      
-      // جلب المحادثة باستخدام endpoint المشرف
-      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok && isMounted.current) {
-        const conversations = await response.json();
-        
-        // استخراج جميع الرسائل من جميع المحادثات
-        let allMessages = [];
-        if (conversations && conversations.length > 0) {
-          for (const conv of conversations) {
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convDetail = await convDetailRes.json();
-              if (convDetail.messages && convDetail.messages.length > 0) {
-                const formattedMessages = convDetail.messages.map(msg => ({
-                  id: msg.id,
-                  content: msg.content,
-                  sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
-                  senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
-                  timestamp: msg.timestamp,
-                  isRead: msg.isRead || false
-                }));
-                allMessages = [...allMessages, ...formattedMessages];
-              }
-            }
-          }
-        }
-        
-        // ترتيب الرسائل حسب الوقت
-        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // حساب رسائل الطالب الجديدة (اللي وصلت من الطالب للمشرف)
-        const studentMessages = allMessages.filter(m => 
-          m.senderId === 'student' && m.sender !== 'Advisor'
-        );
-        const studentMessagesCount = studentMessages.length;
-        
-        const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
-        const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
-        
-        // إشعار للمشرف عند وصول رسائل جديدة من الطالب
-        if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
-          const newCount = studentMessagesCount - prevStudentCount;
-          showNewMessageNotification(student?.fullName, newCount);
-          setUnreadCount(prev => prev + newCount);
-        }
-        
-        // حفظ العدد
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        
-        setMessages(allMessages);
-      }
-    } catch (err) {
-      console.error('Error loading conversation:', err);
-    } finally {
-      if (isMounted.current) {
-        setLoading(false);
-        isFetching.current = false;
-      }
-    }
-  }, [studentId, student, fetchStudentInfo]);
-
-  // تحديث الرسائل دورياً (كل 5 ثواني)
-  const updateMessages = useCallback(async () => {
-    if (!isMounted.current || !studentId) return;
-    const token = localStorage.getItem('token');
-    
-    try {
-      const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok && isMounted.current) {
-        const conversations = await response.json();
-        
-        let allMessages = [];
-        if (conversations && conversations.length > 0) {
-          for (const conv of conversations) {
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convDetail = await convDetailRes.json();
-              if (convDetail.messages && convDetail.messages.length > 0) {
-                const formattedMessages = convDetail.messages.map(msg => ({
-                  id: msg.id,
-                  content: msg.content,
-                  sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
-                  senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
-                  timestamp: msg.timestamp,
-                  isRead: msg.isRead || false
-                }));
-                allMessages = [...allMessages, ...formattedMessages];
-              }
-            }
-          }
-        }
-        
-        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // حساب رسائل الطالب الجديدة
-        const studentMessages = allMessages.filter(m => 
-          m.senderId === 'student' && m.sender !== 'Advisor'
-        );
-        const studentMessagesCount = studentMessages.length;
-        
-        const savedStudentCount = localStorage.getItem(`student_messages_${studentId}`);
-        const prevStudentCount = savedStudentCount ? parseInt(savedStudentCount) : 0;
-        
-        // إشعار للمشرف عند وصول رسائل جديدة من الطالب
-        if (studentMessagesCount > prevStudentCount && prevStudentCount > 0 && isMounted.current) {
-          const newCount = studentMessagesCount - prevStudentCount;
-          showNewMessageNotification(student?.fullName, newCount);
-          setUnreadCount(prev => prev + newCount);
-        }
-        
-        // حفظ العدد المحدث
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        
-        setMessages(allMessages);
-      }
-    } catch (err) {
-      console.error('Update error:', err);
-    }
-  }, [studentId, student]);
-
-  // ✅ useEffect لتحميل المحادثة وتعيين الرسائل كمقروءة
   useEffect(() => {
-    let isActive = true;
-    
-    const initialize = async () => {
-      if (!isActive) return;
-      await loadConversation();
-      // ✅ بعد تحميل المحادثة، إعادة تعيين عدد الرسائل غير المقروءة
-      await resetUnreadCount();
+    const fetchData = async () => {
+      if (!studentId) return;
+      
+      try {
+        const token = localStorage.getItem('token');
+        
+        // 1. جلب معلومات الطالب
+        const studentRes = await fetch('/api/Advisor/students', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (studentRes.ok) {
+          const students = await studentRes.json();
+          const foundStudent = students.find(s => s.id === parseInt(studentId));
+          if (isMounted.current && foundStudent) {
+            setStudent(foundStudent);
+          }
+        }
+        
+        // 2. جلب المحادثة وجميع الرسائل
+        const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (convRes.ok && isMounted.current) {
+          const conversations = await convRes.json();
+          let allMessages = [];
+          
+          for (const conv of conversations) {
+            const detailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (detailRes.ok) {
+              const detail = await detailRes.json();
+              if (detail.messages) {
+                // ✅ تصفية رسائل البوت
+                const filtered = filterBotMessages(detail.messages);
+                allMessages = [...allMessages, ...filtered];
+              }
+            }
+          }
+          
+          allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          setMessages(allMessages);
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      } finally {
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }
     };
-    
-    initialize();
+
+    fetchData();
     
     intervalRef.current = setInterval(() => {
-      if (isActive) {
+      if (isMounted.current) {
+        const updateMessages = async () => {
+          const token = localStorage.getItem('token');
+          const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (convRes.ok) {
+            const conversations = await convRes.json();
+            let allMessages = [];
+            for (const conv of conversations) {
+              const detailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (detailRes.ok) {
+                const detail = await detailRes.json();
+                if (detail.messages) {
+                  const filtered = filterBotMessages(detail.messages);
+                  allMessages = [...allMessages, ...filtered];
+                }
+              }
+            }
+            allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            setMessages(allMessages);
+          }
+        };
         updateMessages();
       }
     }, 5000);
     
     return () => {
-      isActive = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [studentId, loadConversation, updateMessages, resetUnreadCount]);
+  }, [studentId]);
 
-  // إرسال رسالة للطالب (بدون AI)
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
     
@@ -323,7 +169,30 @@ const StudentChatView = () => {
       
       if (response.ok) {
         toast.success('Message sent to student');
-        setTimeout(() => updateMessages(), 500);
+        
+        setTimeout(async () => {
+          const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (convRes.ok) {
+            const conversations = await convRes.json();
+            let allMessages = [];
+            for (const conv of conversations) {
+              const detailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (detailRes.ok) {
+                const detail = await detailRes.json();
+                if (detail.messages) {
+                  const filtered = filterBotMessages(detail.messages);
+                  allMessages = [...allMessages, ...filtered];
+                }
+              }
+            }
+            allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            setMessages(allMessages);
+          }
+        }, 500);
       } else {
         throw new Error('Send failed');
       }
@@ -359,7 +228,6 @@ const StudentChatView = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-gradient-to-br from-gray-100 to-gray-200">
-      {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-teal-600 px-4 py-3 flex items-center gap-3 shadow-md">
         <button
           onClick={() => navigate('/advisor')}
@@ -370,7 +238,7 @@ const StudentChatView = () => {
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <FaUserGraduate className="text-white text-lg" />
         </div>
-        <div className="flex-1">
+        <div>
           <h2 className="font-semibold text-white">
             {student?.fullName || student?.name || `Student ${studentId}`}
           </h2>
@@ -378,15 +246,8 @@ const StudentChatView = () => {
             <p className="text-white/70 text-xs">{student.email}</p>
           )}
         </div>
-        {unreadCount > 0 && (
-          <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1">
-            <FaBell size={12} />
-            {unreadCount}
-          </div>
-        )}
       </div>
 
-      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
@@ -397,7 +258,6 @@ const StudentChatView = () => {
         ) : (
           messages.map((msg, idx) => {
             const isAdvisor = msg.senderId === 'advisor' || msg.sender === 'Advisor';
-            const isUnread = !isAdvisor && !msg.isRead;
             return (
               <div key={msg.id || idx} className={`flex mb-3 ${isAdvisor ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[70%] ${isAdvisor ? 'mr-2' : 'ml-2'}`}>
@@ -405,11 +265,10 @@ const StudentChatView = () => {
                     isAdvisor 
                       ? 'bg-[#dcf8c5] text-gray-800 rounded-tr-none' 
                       : 'bg-white text-gray-800 rounded-tl-none'
-                  } ${isUnread ? 'border-l-4 border-blue-500' : ''}`}>
+                  }`}>
                     <p className="text-sm break-words">{msg.content}</p>
                     <div className="text-[10px] text-gray-400 mt-1 text-right">
                       {formatTime(msg.timestamp)}
-                      {isUnread && <span className="ml-2 text-blue-500">● New</span>}
                     </div>
                   </div>
                 </div>
@@ -420,7 +279,6 @@ const StudentChatView = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       <div className="p-3 bg-white border-t">
         <div className="flex gap-2 items-end">
           <textarea
