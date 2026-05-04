@@ -14,7 +14,6 @@ const StudentChatView = () => {
   const [inputMessage, setInputMessage] = useState('');
   const messagesEndRef = useRef(null);
   const isMounted = useRef(true);
-  const intervalRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,72 +27,64 @@ const StudentChatView = () => {
     isMounted.current = true;
     return () => {
       isMounted.current = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
-  // ✅ تصفية رسائل البوت
-  const filterBotMessages = (messagesList) => {
-    return messagesList.filter(msg => 
-      msg.sender !== 'Bot' && 
-      msg.sender !== 'bot' &&
-      msg.sender !== 'Assistant' &&
-      msg.sender !== 'assistant' &&
-      msg.senderId !== 'bot' &&
-      !msg.content?.includes('رد تجريبي من البوت') &&
-      !msg.content?.includes('شكراً لرسالتك') &&
-      !msg.content?.includes('--- Conversation saved ---') &&
-      !msg.content?.includes('--- New conversation started ---')
-    );
-  };
-
+  // ✅ جلب معلومات الطالب والمحادثة الخاصة به فقط
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchConversation = async () => {
       if (!studentId) return;
       
       try {
         const token = localStorage.getItem('token');
         
-        // 1. جلب معلومات الطالب
-        const studentRes = await fetch('/api/Advisor/students', {
+        // 1. جلب معلومات الطالب الأساسية (اسمه، إيميله)
+        const studentsRes = await fetch('/api/Advisor/students', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (studentRes.ok) {
-          const students = await studentRes.json();
+        if (studentsRes.ok) {
+          const students = await studentsRes.json();
           const foundStudent = students.find(s => s.id === parseInt(studentId));
           if (isMounted.current && foundStudent) {
             setStudent(foundStudent);
           }
         }
         
-        // 2. جلب المحادثة وجميع الرسائل
-        const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+        // 2. جلب المحادثة الخاصة بهذا الطالب فقط
+        const response = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
-        if (convRes.ok && isMounted.current) {
-          const conversations = await convRes.json();
-          let allMessages = [];
-          
-          for (const conv of conversations) {
-            const detailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+        if (response.ok && isMounted.current) {
+          const conversations = await response.json();
+          // الفكرة: نفترض أن المحادثة الأولى (أو الوحيدة) هي المحادثة المطلوبة
+          if (conversations && conversations.length > 0) {
+            // نجلب تفاصيل المحادثة الأولى (التي تحتوي على قائمة الرسائل)
+            const conversationId = conversations[0].id;
+            const conversationDetailRes = await fetch(`/api/Advisor/conversations/${conversationId}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (detailRes.ok) {
-              const detail = await detailRes.json();
-              if (detail.messages) {
-                // ✅ تصفية رسائل البوت
-                const filtered = filterBotMessages(detail.messages);
-                allMessages = [...allMessages, ...filtered];
-              }
+            
+            if (conversationDetailRes.ok) {
+              const conversationData = await conversationDetailRes.json();
+              // نتأكد من تصفية أي رسائل بوت قديمة للتأكد من النظافة
+              const filteredMessages = (conversationData.messages || []).filter(msg => 
+                msg.sender === 'Student' || msg.sender === 'Advisor'
+              );
+              setMessages(filteredMessages);
+            } else {
+              setMessages([]);
             }
+          } else {
+            // إذا لم يسبق لأحد أن أرسل رسالة، نبدأ بمصفوفة فارغة
+            setMessages([]);
           }
-          
-          allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-          setMessages(allMessages);
+        } else {
+          setMessages([]);
         }
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error loading conversation:', err);
+        toast.error('Failed to load conversation');
       } finally {
         if (isMounted.current) {
           setLoading(false);
@@ -101,43 +92,10 @@ const StudentChatView = () => {
       }
     };
 
-    fetchData();
-    
-    intervalRef.current = setInterval(() => {
-      if (isMounted.current) {
-        const updateMessages = async () => {
-          const token = localStorage.getItem('token');
-          const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (convRes.ok) {
-            const conversations = await convRes.json();
-            let allMessages = [];
-            for (const conv of conversations) {
-              const detailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              if (detailRes.ok) {
-                const detail = await detailRes.json();
-                if (detail.messages) {
-                  const filtered = filterBotMessages(detail.messages);
-                  allMessages = [...allMessages, ...filtered];
-                }
-              }
-            }
-            allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            setMessages(allMessages);
-          }
-        };
-        updateMessages();
-      }
-    }, 5000);
-    
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    fetchConversation();
   }, [studentId]);
 
+  // ✅ إرسال رسالة إلى هذا الطالب بالذات
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || sending) return;
     
@@ -145,6 +103,7 @@ const StudentChatView = () => {
     const messageText = inputMessage;
     setInputMessage('');
     
+    // إضافة مؤقتة للرسالة في الواجهة
     const tempMsg = {
       id: Date.now(),
       content: messageText,
@@ -158,6 +117,7 @@ const StudentChatView = () => {
     try {
       const token = localStorage.getItem('token');
       
+      // استدعاء الـ API الخاص بإرسال رسالة لطالب معين
       const response = await fetch(`/api/Advisor/students/${studentId}/send-message`, {
         method: 'POST',
         headers: {
@@ -168,37 +128,41 @@ const StudentChatView = () => {
       });
       
       if (response.ok) {
-        toast.success('Message sent to student');
+        // نستبدل الرسالة المؤقتة بالرسالة النهائية (أو نضيفها فقط)
+        // سنقوم بإعادة جلب المحادثة بأكملها للحصول على الرسالة بصيغتها النهائية من السيرفر
+        toast.success('Message sent');
         
-        setTimeout(async () => {
-          const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (convRes.ok) {
-            const conversations = await convRes.json();
-            let allMessages = [];
-            for (const conv of conversations) {
-              const detailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              if (detailRes.ok) {
-                const detail = await detailRes.json();
-                if (detail.messages) {
-                  const filtered = filterBotMessages(detail.messages);
-                  allMessages = [...allMessages, ...filtered];
-                }
-              }
+        // تحديث المحادثة وعرض الرسالة الجديدة (ونحن نضمن أنها ليست من البوت)
+        const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (convRes.ok) {
+          const conversations = await convRes.json();
+          if (conversations && conversations.length > 0) {
+            const conversationId = conversations[0].id;
+            const convDetailRes = await fetch(`/api/Advisor/conversations/${conversationId}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (convDetailRes.ok) {
+              const convData = await convDetailRes.json();
+              const updatedMessages = (convData.messages || []).filter(msg => 
+                msg.sender === 'Student' || msg.sender === 'Advisor'
+              );
+              setMessages(updatedMessages);
             }
-            allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            setMessages(allMessages);
           }
-        }, 500);
+        }
+        // نجعل التمرير للأسفل بعد تحديث الرسائل
+        setTimeout(scrollToBottom, 100);
       } else {
-        throw new Error('Send failed');
+        // إذا فشل الإرسال، نزيل الرسالة المؤقتة ونخلي المستخدم يعيد كتابتها
+        toast.error('Failed to send message');
+        setMessages(prev => prev.filter(msg => msg.id !== tempMsg.id));
+        setInputMessage(messageText);
       }
     } catch (err) {
-      console.error('Error:', err);
-      toast.error('Failed to send');
+      console.error('Error sending message:', err);
+      toast.error('Failed to send message');
       setMessages(prev => prev.filter(msg => msg.id !== tempMsg.id));
       setInputMessage(messageText);
     } finally {
@@ -228,6 +192,7 @@ const StudentChatView = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] bg-gradient-to-br from-gray-100 to-gray-200">
+      {/* Header - باقي كما هو */}
       <div className="bg-gradient-to-r from-green-600 to-teal-600 px-4 py-3 flex items-center gap-3 shadow-md">
         <button
           onClick={() => navigate('/advisor')}
@@ -248,6 +213,7 @@ const StudentChatView = () => {
         </div>
       </div>
 
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
@@ -279,6 +245,7 @@ const StudentChatView = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input Area */}
       <div className="p-3 bg-white border-t">
         <div className="flex gap-2 items-end">
           <textarea
