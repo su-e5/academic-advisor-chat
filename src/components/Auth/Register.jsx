@@ -28,12 +28,11 @@ const Register = () => {
 
   const departments = [
     "Computer Science",
-    "Software Engineering",
+    "Information Technology",
     "Information Systems",
     "Artificial Intelligence",
     "Cybersecurity",
-    "Data Science",
-    "Network Engineering",
+    "BioInformatics",
   ];
 
   const handleChange = (e) => {
@@ -101,7 +100,7 @@ const Register = () => {
                 value={formData.fullName}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-3 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/50"
-                placeholder="Ahmed Ali"
+                placeholder="Your name"
                 required
                 disabled={loading}
               />
