@@ -9,6 +9,7 @@ const AdvisorMessages = () => {
   const [sending, setSending] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [previousMessageCount, setPreviousMessageCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
   const intervalRef = useRef(null);
   const audioRef = useRef(null);
@@ -33,6 +34,28 @@ const AdvisorMessages = () => {
       }
     };
   }, []);
+
+  // ✅ عرض إشعار للطالب عند وصول رسالة من المشرف
+  const showNewMessageNotification = (advisorName, messageCount) => {
+    const messageText = messageCount === 1 
+      ? `📩 New message from your academic advisor!` 
+      : `📩 ${messageCount} new messages from your academic advisor!`;
+    
+    toast.success(messageText, {
+      duration: 5000,
+      position: 'top-right',
+      icon: '🔔'
+    });
+    
+    if (audioRef.current) {
+      audioRef.current.play().catch(e => console.log('Audio play failed:', e));
+    }
+    
+    document.title = `📩 New message from Advisor - UniGuide`;
+    setTimeout(() => {
+      document.title = 'UniGuide';
+    }, 5000);
+  };
 
   // جلب المحادثة
   const loadConversation = async () => {
@@ -65,12 +88,24 @@ const AdvisorMessages = () => {
           !msg.content?.includes('رد تجريبي من البوت')
         );
         
-        if (filteredMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
-          if (audioRef.current) {
-            audioRef.current.play().catch(e => console.log('Audio play failed:', e));
-          }
-          toast.success('New message from advisor!');
+        // ✅ حساب رسائل المشرف الجديدة
+        const advisorMessages = filteredMessages.filter(m => 
+          m.sender === 'Advisor' || m.senderId === 'advisor'
+        );
+        const advisorMessagesCount = advisorMessages.length;
+        
+        const savedAdvisorCount = localStorage.getItem(`advisor_messages_count`);
+        const prevAdvisorCount = savedAdvisorCount ? parseInt(savedAdvisorCount) : 0;
+        
+        // ✅ إشعار للطالب عند وصول رسائل جديدة من المشرف
+        if (advisorMessagesCount > prevAdvisorCount && prevAdvisorCount > 0 && isMounted.current) {
+          const newCount = advisorMessagesCount - prevAdvisorCount;
+          showNewMessageNotification('Advisor', newCount);
+          setUnreadCount(prev => prev + newCount);
         }
+        
+        // حفظ عدد رسائل المشرف
+        localStorage.setItem(`advisor_messages_count`, advisorMessagesCount.toString());
         
         if (isMounted.current) {
           setPreviousMessageCount(filteredMessages.length);
@@ -89,7 +124,7 @@ const AdvisorMessages = () => {
     }
   };
 
-  // تحديث دوري
+  // تحديث دوري (كل 5 ثواني)
   const updateMessages = async () => {
     if (!isMounted.current) return;
     const token = localStorage.getItem('token');
@@ -117,11 +152,29 @@ const AdvisorMessages = () => {
           !msg.content?.includes('رد تجريبي من البوت')
         );
         
+        // ✅ حساب رسائل المشرف الجديدة
+        const advisorMessages = filteredMessages.filter(m => 
+          m.sender === 'Advisor' || m.senderId === 'advisor'
+        );
+        const advisorMessagesCount = advisorMessages.length;
+        
+        const savedAdvisorCount = localStorage.getItem(`advisor_messages_count`);
+        const prevAdvisorCount = savedAdvisorCount ? parseInt(savedAdvisorCount) : 0;
+        
+        // ✅ إشعار للطالب عند وصول رسائل جديدة من المشرف
+        if (advisorMessagesCount > prevAdvisorCount && prevAdvisorCount > 0 && isMounted.current) {
+          const newCount = advisorMessagesCount - prevAdvisorCount;
+          showNewMessageNotification('Advisor', newCount);
+          setUnreadCount(prev => prev + newCount);
+        }
+        
+        // حفظ عدد رسائل المشرف
+        localStorage.setItem(`advisor_messages_count`, advisorMessagesCount.toString());
+        
         if (filteredMessages.length > previousMessageCount && previousMessageCount > 0 && isMounted.current) {
           if (audioRef.current) {
             audioRef.current.play().catch(e => console.log('Audio play failed:', e));
           }
-          toast.success('New message from advisor!');
         }
         
         if (isMounted.current) {
@@ -183,7 +236,6 @@ const AdvisorMessages = () => {
       });
       
       if (response.ok) {
-        // ✅ من غير استدعاء response.json() - إزالة التحذير
         setMessages(prev => prev.map(m => 
           m.id === tempMsg.id ? { ...m, status: 'sent', temp: false } : m
         ));
@@ -260,6 +312,12 @@ const AdvisorMessages = () => {
             Online • Typically responds within 24 hours
           </p>
         </div>
+        {unreadCount > 0 && (
+          <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 flex items-center gap-1">
+            <FaCommentDots size={12} />
+            {unreadCount}
+          </div>
+        )}
       </div>
 
       {/* Messages Area */}
