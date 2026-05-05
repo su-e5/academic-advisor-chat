@@ -1,7 +1,7 @@
 // src/components/Advisor/StudentsList.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaComments, FaBell, FaUserGraduate,  FaSpinner, FaFilter } from 'react-icons/fa';
+import { FaComments, FaBell, FaUserGraduate, FaSpinner, FaFilter } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentsList = () => {
@@ -19,6 +19,7 @@ const StudentsList = () => {
     { value: 4, label: 'Level 4' },
   ];
 
+  // جلب الطلاب
   const fetchStudents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -45,14 +46,64 @@ const StudentsList = () => {
     }
   }, []);
 
-  const updateUnreadCounts = useCallback(() => {
-    const counts = {};
+  // ✅ جلب عدد الرسائل مباشرة من الـ API
+  const fetchUnreadFromAPI = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const newCounts = { ...unreadCounts };
+    
     for (const student of students) {
-      const saved = localStorage.getItem(`unread_${student.id}`);
-      counts[student.id] = saved ? parseInt(saved) : 0;
+      try {
+        const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (convRes.ok) {
+          const conversations = await convRes.json();
+          let totalStudentMessages = 0;
+          
+          for (const conv of conversations) {
+            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (convDetailRes.ok) {
+              const convDetail = await convDetailRes.json();
+              const studentMsgCount = convDetail.messages?.filter(m => 
+                (m.sender === 'Student' || m.senderId === 'student')
+              ).length || 0;
+              totalStudentMessages += studentMsgCount;
+            }
+          }
+          
+          const savedCount = localStorage.getItem(`student_messages_${student.id}`);
+          const prevCount = savedCount ? parseInt(savedCount) : 0;
+          
+          if (totalStudentMessages > prevCount) {
+            const newUnread = totalStudentMessages - prevCount;
+            const currentUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
+            const newTotal = currentUnread + newUnread;
+            localStorage.setItem(`unread_${student.id}`, newTotal.toString());
+            newCounts[student.id] = newTotal;
+            console.log(`🔔 New message for ${student.fullName}! +${newUnread} unread (total: ${newTotal})`);
+            
+            // ✅ إشعار توست
+            toast.success(`📩 New message from ${student.fullName}!`, {
+              duration: 3000,
+              position: 'top-right',
+              icon: '🔔'
+            });
+          } else {
+            newCounts[student.id] = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
+          }
+          
+          localStorage.setItem(`student_messages_${student.id}`, totalStudentMessages.toString());
+        }
+      } catch (err) {
+        console.error(`Error checking student ${student.id}:`, err);
+      }
     }
-    setUnreadCounts(counts);
-  }, [students]);
+    
+    setUnreadCounts(newCounts);
+  }, [students, unreadCounts]);
 
   useEffect(() => {
     let isMounted = true;
@@ -64,17 +115,18 @@ const StudentsList = () => {
     
     initialize();
     
+    // تحديث كل 5 ثواني من الـ API مباشرة
     const interval = setInterval(() => {
-      if (isMounted) {
-        updateUnreadCounts();
+      if (isMounted && students.length > 0) {
+        fetchUnreadFromAPI();
       }
-    }, 3000);
+    }, 5000);
     
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [fetchStudents, updateUnreadCounts]);
+  }, [fetchStudents, fetchUnreadFromAPI, students.length]);
 
   const handleChatClick = (studentId) => {
     localStorage.setItem(`unread_${studentId}`, '0');
