@@ -39,6 +39,37 @@ const StudentChatView = () => {
   }
 }, [studentId, messages]);
 
+
+// ✅ عند فتح الشات، أرسلي طلب لتحديث العداد إلى الصفر
+useEffect(() => {
+  const resetUnread = async () => {
+    if (!studentId) return;
+    
+    // إعادة تعيين العداد في localStorage
+    localStorage.setItem(`unread_${studentId}`, '0');
+    localStorage.setItem(`student_messages_${studentId}`, '0');
+    
+    // اختياري: إرسال طلب للـ API لتعليم الرسائل كمقروءة
+    const token = localStorage.getItem('token');
+    const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (convRes.ok) {
+      const conversations = await convRes.json();
+      for (const conv of conversations) {
+        // تعليم رسائل الطالب كمقروءة (اختياري حسب الـ API)
+        await fetch(`/api/Advisor/conversations/${conv.id}/mark-read`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => {});
+      }
+    }
+  };
+  
+  resetUnread();
+}, [studentId]);
+
   // جلب المحادثة
   const fetchConversation = async () => {
     if (!studentId) return;

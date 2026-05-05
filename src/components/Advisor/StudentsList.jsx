@@ -1,7 +1,7 @@
 // src/components/Advisor/StudentsList.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaComments, FaBell, FaUserGraduate, FaEnvelope, FaSpinner, FaFilter } from 'react-icons/fa';
+import { FaComments, FaBell, FaUserGraduate,  FaSpinner, FaFilter } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const StudentsList = () => {
@@ -13,24 +13,13 @@ const StudentsList = () => {
 
   const academicLevels = [
     { value: 'all', label: 'All Levels' },
-    { value: 1, label: 'Level 1 - First Year' },
-    { value: 2, label: 'Level 2 - Second Year' },
-    { value: 3, label: 'Level 3 - Third Year' },
-    { value: 4, label: 'Level 4 - Fourth Year' },
+    { value: 1, label: 'Level 1' },
+    { value: 2, label: 'Level 2' },
+    { value: 3, label: 'Level 3' },
+    { value: 4, label: 'Level 4' },
   ];
 
-  // جلب عدد الرسائل غير المقروءة من localStorage
-  const loadUnreadCounts = () => {
-    const counts = {};
-    for (const student of students) {
-      const saved = localStorage.getItem(`student_messages_${student.id}`);
-      counts[student.id] = saved ? parseInt(saved) : 0;
-    }
-    setUnreadCounts(counts);
-  };
-
-  // جلب الطلاب
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/Advisor/students', {
@@ -40,7 +29,13 @@ const StudentsList = () => {
       if (response.ok) {
         const data = await response.json();
         setStudents(data);
-        loadUnreadCounts();
+        
+        const counts = {};
+        for (const student of data) {
+          const saved = localStorage.getItem(`unread_${student.id}`);
+          counts[student.id] = saved ? parseInt(saved) : 0;
+        }
+        setUnreadCounts(counts);
       }
     } catch (err) {
       console.error('Error:', err);
@@ -48,26 +43,41 @@ const StudentsList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // تحميل أولي
+  const updateUnreadCounts = useCallback(() => {
+    const counts = {};
+    for (const student of students) {
+      const saved = localStorage.getItem(`unread_${student.id}`);
+      counts[student.id] = saved ? parseInt(saved) : 0;
+    }
+    setUnreadCounts(counts);
+  }, [students]);
+
   useEffect(() => {
-    const init = async () => {
+    let isMounted = true;
+    
+    const initialize = async () => {
+      if (!isMounted) return;
       await fetchStudents();
     };
-    init();
     
-    // تحديث كل 3 ثواني
+    initialize();
+    
     const interval = setInterval(() => {
-      loadUnreadCounts();
+      if (isMounted) {
+        updateUnreadCounts();
+      }
     }, 3000);
     
-    return () => clearInterval(interval);
-  }, [students.length]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [fetchStudents, updateUnreadCounts]);
 
-  // عند الضغط على Chat، نخفي النوتفيكيشن
   const handleChatClick = (studentId) => {
-    localStorage.setItem(`student_messages_${studentId}`, '0');
+    localStorage.setItem(`unread_${studentId}`, '0');
     setUnreadCounts(prev => ({ ...prev, [studentId]: 0 }));
     navigate(`/advisor/chat/${studentId}`);
   };
@@ -93,7 +103,7 @@ const StudentsList = () => {
       <p className="text-gray-500 mb-6">Manage and communicate with your students</p>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div><p className="text-sm opacity-80">Total Students</p><p className="text-2xl font-bold">{students.length}</p></div>
@@ -112,12 +122,6 @@ const StudentsList = () => {
             <FaBell size={32} className="opacity-50" />
           </div>
         </div>
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div><p className="text-sm opacity-80">Total Students</p><p className="text-2xl font-bold">{students.length}</p></div>
-            <FaUserGraduate size={32} className="opacity-50" />
-          </div>
-        </div>
       </div>
 
       {/* Filter */}
@@ -125,7 +129,7 @@ const StudentsList = () => {
         <div className="flex items-center gap-2"><FaFilter className="text-gray-500" /><span className="text-sm text-gray-600">Filter by level:</span></div>
         <div className="flex gap-2">
           {academicLevels.map(level => (
-            <button key={level.value} onClick={() => setFilterLevel(level.value)} className={`px-3 py-1.5 text-sm rounded-lg transition-all ${filterLevel === level.value ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            <button key={level.value} onClick={() => setFilterLevel(level.value)} className={`px-3 py-1.5 text-sm rounded-lg transition-all ${filterLevel === level.value ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {level.label}
             </button>
           ))}
@@ -140,7 +144,6 @@ const StudentsList = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">New Messages</th>
@@ -152,17 +155,18 @@ const StudentsList = () => {
                 const unread = unreadCounts[student.id] || 0;
                 return (
                   <tr key={student.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center text-white font-bold">{student.fullName?.charAt(0) || 'S'}</div>
-                        <div className="ml-3"><div className="text-sm font-medium text-gray-900">{student.fullName}</div></div>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center text-white font-bold">
+                          {student.fullName?.charAt(0) || 'S'}
+                        </div>
+                        <div className="font-medium text-gray-900">{student.fullName}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-gray-500 flex items-center gap-1"><FaEnvelope size={12} /> {student.email}</div></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-gray-500">{student.department || '-'}</div></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Level {student.academicLevel || 1}</span></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 py-1 text-xs rounded-full ${student.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{student.isActive ? 'Active' : 'Inactive'}</span></td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 text-sm text-gray-500">{student.email}</td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Level {student.academicLevel || 1}</span></td>
+                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs rounded-full ${student.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{student.isActive ? 'Active' : 'Inactive'}</span></td>
+                    <td className="px-6 py-4">
                       {unread > 0 ? (
                         <div className="flex items-center gap-1">
                           <div className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{unread}</div>
@@ -170,8 +174,10 @@ const StudentsList = () => {
                         </div>
                       ) : (<span className="text-sm text-gray-400">0</span>)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button onClick={() => handleChatClick(student.id)} className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-all text-sm"><FaComments size={14} /> Chat</button>
+                    <td className="px-6 py-4">
+                      <button onClick={() => handleChatClick(student.id)} className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <FaComments size={14} /> Chat
+                      </button>
                     </td>
                   </tr>
                 );
@@ -181,9 +187,7 @@ const StudentsList = () => {
         </div>
       </div>
 
-      {filteredStudents.length === 0 && (
-        <div className="text-center py-12 text-gray-500"><FaUserGraduate className="text-5xl mx-auto mb-3 opacity-30" /><p>No students found for this level.</p></div>
-      )}
+      {filteredStudents.length === 0 && <div className="text-center py-12 text-gray-500">No students found</div>}
     </div>
   );
 };
