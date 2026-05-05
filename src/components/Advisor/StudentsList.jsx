@@ -47,29 +47,9 @@ const StudentsList = () => {
   }, []);
 
 
-// ✅ أضيفي هذا useEffect المستقل
-useEffect(() => {
-  // دالة تحديث الأعداد من localStorage
-  const updateUnreadCounts = () => {
-    const counts = {};
-    for (const student of students) {
-      const saved = localStorage.getItem(`unread_${student.id}`);
-      counts[student.id] = saved ? parseInt(saved) : 0;
-    }
-    setUnreadCounts(counts);
-    console.log("🔄 Updated unread counts:", counts);
-  };
-  
-  // تحديث أول مرة
-  updateUnreadCounts();
-  
-  // تحديث كل 2 ثانية
-  const interval = setInterval(updateUnreadCounts, 2000);
-  
-  return () => clearInterval(interval);
-}, [students]);
 
 
+  
   // ✅ جلب عدد الرسائل مباشرة من الـ API
  // ✅ استبدلي fetchUnreadFromAPI بهذا الكود
 const fetchUnreadFromAPI = useCallback(async () => {
