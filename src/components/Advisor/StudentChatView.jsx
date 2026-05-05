@@ -1,270 +1,247 @@
-// src/components/Advisor/StudentChatView.jsx
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaUserGraduate, FaPaperPlane, FaSpinner } from 'react-icons/fa';
+// src/components/Advisor/StudentsList.jsx
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FaComments, FaBell, FaUserGraduate, FaSpinner, FaFilter } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
-const StudentChatView = () => {
-  const { studentId } = useParams();
-  const navigate = useNavigate();
-  const [messages, setMessages] = useState([]);
-  const [student, setStudent] = useState(null);
+const StudentsList = () => {
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [inputMessage, setInputMessage] = useState('');
-  const messagesEndRef = useRef(null);
-  const isMounted = useRef(true);
-  const intervalRef = useRef(null);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [filterLevel, setFilterLevel] = useState('all');
+  const navigate = useNavigate();
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const academicLevels = [
+    { value: 'all', label: 'All Levels' },
+    { value: 1, label: 'Level 1' },
+    { value: 2, label: 'Level 2' },
+    { value: 3, label: 'Level 3' },
+    { value: 4, label: 'Level 4' },
+  ];
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
-
-  // عند فتح الشات، نضيف reset للعداد
-  useEffect(() => {
-    if (studentId) {
-      localStorage.setItem(`unread_${studentId}`, '0');
-    }
-  }, [studentId]);
-
-  // جلب المحادثة
-  const fetchConversation = async () => {
-    if (!studentId) return;
-    
+  // جلب الطلاب
+  const fetchStudents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      
-      // جلب معلومات الطالب
-      const studentsRes = await fetch('/api/Advisor/students', {
+      const response = await fetch('/api/Advisor/students', {
         headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (studentsRes.ok) {
-        const students = await studentsRes.json();
-        const foundStudent = students.find(s => s.id === parseInt(studentId));
-        if (isMounted.current && foundStudent) setStudent(foundStudent);
-      }
-      
-      // جلب المحادثة
-      const convRes = await fetch(`/api/Advisor/students/${studentId}/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (convRes.ok && isMounted.current) {
-        const conversations = await convRes.json();
-        let allMessages = [];
-        
-        for (const conv of conversations) {
-          const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (convDetailRes.ok) {
-            const convDetail = await convDetailRes.json();
-            if (convDetail.messages) {
-              const formattedMessages = convDetail.messages.map(msg => ({
-                id: msg.id,
-                content: msg.content,
-                sender: msg.sender === 'Advisor' ? 'Advisor' : 'Student',
-                senderId: msg.sender === 'Advisor' ? 'advisor' : 'student',
-                timestamp: msg.timestamp,
-              }));
-              allMessages = [...allMessages, ...formattedMessages];
-            }
-          }
-        }
-        
-        allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
-        // ✅ تحديث العداد عند وجود رسائل جديدة من الطالب
-        const studentMessagesCount = allMessages.filter(m => 
-          (m.sender === 'Student' || m.senderId === 'student') && 
-          m.sender !== 'Advisor'
-        ).length;
-        
-        const savedCount = localStorage.getItem(`student_messages_${studentId}`);
-        const prevCount = savedCount ? parseInt(savedCount) : 0;
-        
-        if (studentMessagesCount > prevCount && prevCount > 0) {
-          const newUnread = studentMessagesCount - prevCount;
-          const currentUnread = parseInt(localStorage.getItem(`unread_${studentId}`) || '0');
-          localStorage.setItem(`unread_${studentId}`, (currentUnread + newUnread).toString());
-          console.log(`📩 New message from student ${studentId}! +${newUnread} unread (total: ${currentUnread + newUnread})`);
-        }
-        
-        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
-        
-        setMessages(allMessages);
-      }
-    } catch (err) {
-      console.error('Error loading conversation:', err);
-    } finally {
-      if (isMounted.current) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let isActive = true;
-    
-    const init = async () => {
-      if (isActive) await fetchConversation();
-    };
-    
-    init();
-    
-    intervalRef.current = setInterval(() => {
-      if (isActive) fetchConversation();
-    }, 5000);
-    
-    return () => {
-      isActive = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [studentId]);
-
-  // إرسال رسالة
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || sending) return;
-    
-    setSending(true);
-    const messageText = inputMessage;
-    setInputMessage('');
-    
-    const tempMsg = {
-      id: Date.now(),
-      content: messageText,
-      senderId: 'advisor',
-      sender: 'Advisor',
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, tempMsg]);
-    scrollToBottom();
-    
-    try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(`/api/Advisor/students/${studentId}/send-message`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(messageText)
       });
       
       if (response.ok) {
-        toast.success('Message sent');
-        setTimeout(() => fetchConversation(), 500);
-      } else {
-        throw new Error('Send failed');
+        const data = await response.json();
+        setStudents(data);
+        
+        const counts = {};
+        for (const student of data) {
+          const saved = localStorage.getItem(`unread_${student.id}`);
+          counts[student.id] = saved ? parseInt(saved) : 0;
+        }
+        setUnreadCounts(counts);
       }
     } catch (err) {
       console.error('Error:', err);
-      toast.error('Failed to send');
-      setMessages(prev => prev.filter(msg => msg.id !== tempMsg.id));
-      setInputMessage(messageText);
+      toast.error('Failed to load students');
     } finally {
-      setSending(false);
+      setLoading(false);
     }
+  }, []);
+
+  // ✅ جلب عدد الرسائل مباشرة من الـ API
+  const fetchUnreadFromAPI = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const newCounts = { ...unreadCounts };
+    
+    for (const student of students) {
+      try {
+        const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (convRes.ok) {
+          const conversations = await convRes.json();
+          let totalStudentMessages = 0;
+          
+          for (const conv of conversations) {
+            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (convDetailRes.ok) {
+              const convDetail = await convDetailRes.json();
+              const studentMsgCount = convDetail.messages?.filter(m => 
+                (m.sender === 'Student' || m.senderId === 'student')
+              ).length || 0;
+              totalStudentMessages += studentMsgCount;
+            }
+          }
+          
+          const savedCount = localStorage.getItem(`student_messages_${student.id}`);
+          const prevCount = savedCount ? parseInt(savedCount) : 0;
+          
+          if (totalStudentMessages > prevCount) {
+            const newUnread = totalStudentMessages - prevCount;
+            const currentUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
+            const newTotal = currentUnread + newUnread;
+            localStorage.setItem(`unread_${student.id}`, newTotal.toString());
+            newCounts[student.id] = newTotal;
+            console.log(`🔔 New message for ${student.fullName}! +${newUnread} unread (total: ${newTotal})`);
+            
+            // ✅ إشعار توست
+            toast.success(`📩 New message from ${student.fullName}!`, {
+              duration: 3000,
+              position: 'top-right',
+              icon: '🔔'
+            });
+          } else {
+            newCounts[student.id] = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
+          }
+          
+          localStorage.setItem(`student_messages_${student.id}`, totalStudentMessages.toString());
+        }
+      } catch (err) {
+        console.error(`Error checking student ${student.id}:`, err);
+      }
+    }
+    
+    setUnreadCounts(newCounts);
+  }, [students, unreadCounts]);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initialize = async () => {
+      if (!isMounted) return;
+      await fetchStudents();
+    };
+    
+    initialize();
+    
+    // تحديث كل 5 ثواني من الـ API مباشرة
+    const interval = setInterval(() => {
+      if (isMounted && students.length > 0) {
+        fetchUnreadFromAPI();
+      }
+    }, 5000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [fetchStudents, fetchUnreadFromAPI, students.length]);
+
+  const handleChatClick = (studentId) => {
+    localStorage.setItem(`unread_${studentId}`, '0');
+    setUnreadCounts(prev => ({ ...prev, [studentId]: 0 }));
+    navigate(`/advisor/chat/${studentId}`);
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  const filteredStudents = filterLevel === 'all' 
+    ? students 
+    : students.filter(s => s.academicLevel === filterLevel);
 
-  const formatTime = (date) => {
-    if (!date) return '';
-    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+  const activeStudents = students.filter(s => s.isActive).length;
 
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+        <FaSpinner className="animate-spin text-green-500 text-4xl" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] bg-gradient-to-br from-gray-100 to-gray-200">
-      <div className="bg-gradient-to-r from-green-600 to-teal-600 px-4 py-3 flex items-center gap-3 shadow-md">
-        <button onClick={() => navigate('/advisor')} className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg">
-          <FaArrowLeft size={18} />
-        </button>
-        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-          <FaUserGraduate className="text-white text-lg" />
-        </div>
-        <div>
-          <h2 className="font-semibold text-white">
-            {student?.fullName || student?.name || `Student ${studentId}`}
-          </h2>
-          {student && <p className="text-white/70 text-xs">{student.email}</p>}
-        </div>
-      </div>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold text-gray-800 mb-2">My Students</h1>
+      <p className="text-gray-500 mb-6">Manage and communicate with your students</p>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2]">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
-            <FaUserGraduate className="text-5xl mb-3 opacity-40" />
-            <p className="text-sm">No messages yet</p>
-            <p className="text-xs">Send a message to start the conversation</p>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm opacity-80">Total Students</p><p className="text-2xl font-bold">{students.length}</p></div>
+            <FaUserGraduate size={32} className="opacity-50" />
           </div>
-        ) : (
-          messages.map((msg, idx) => {
-            const isAdvisor = msg.senderId === 'advisor' || msg.sender === 'Advisor';
-            return (
-              <div key={msg.id || idx} className={`flex mb-3 ${isAdvisor ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] ${isAdvisor ? 'mr-2' : 'ml-2'}`}>
-                  <div className={`rounded-2xl px-4 py-2 shadow-sm ${isAdvisor ? 'bg-[#dcf8c5] text-gray-800 rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none'}`}>
-                    <p className="text-sm break-words">{msg.content}</p>
-                    <div className="text-[10px] text-gray-400 mt-1 text-right">
-                      {formatTime(msg.timestamp)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="p-3 bg-white border-t">
-        <div className="flex gap-2 items-end">
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
-            className="flex-1 resize-none p-3 text-sm border-0 rounded-2xl bg-gray-100 focus:bg-white focus:ring-1 focus:ring-green-500 focus:outline-none"
-            rows={1}
-            style={{ minHeight: '44px', maxHeight: '100px' }}
-            disabled={sending}
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || sending}
-            className="bg-green-600 text-white w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-green-700 transition-all shadow-md"
-          >
-            {sending ? <FaSpinner className="animate-spin" size={18} /> : <FaPaperPlane size={18} />}
-          </button>
+        </div>
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm opacity-80">Active Students</p><p className="text-2xl font-bold">{activeStudents}</p></div>
+            <FaUserGraduate size={32} className="opacity-50" />
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div><p className="text-sm opacity-80">Unread Messages</p><p className="text-2xl font-bold">{totalUnread}</p></div>
+            <FaBell size={32} className="opacity-50" />
+          </div>
         </div>
       </div>
+
+      {/* Filter */}
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex items-center gap-2"><FaFilter className="text-gray-500" /><span className="text-sm text-gray-600">Filter by level:</span></div>
+        <div className="flex gap-2">
+          {academicLevels.map(level => (
+            <button key={level.value} onClick={() => setFilterLevel(level.value)} className={`px-3 py-1.5 text-sm rounded-lg transition-all ${filterLevel === level.value ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {level.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Level</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">New Messages</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredStudents.map((student) => {
+                const unread = unreadCounts[student.id] || 0;
+                return (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-teal-500 flex items-center justify-center text-white font-bold">
+                          {student.fullName?.charAt(0) || 'S'}
+                        </div>
+                        <div className="font-medium text-gray-900">{student.fullName}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{student.email}</td>
+                    <td className="px-6 py-4"><span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Level {student.academicLevel || 1}</span></td>
+                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs rounded-full ${student.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{student.isActive ? 'Active' : 'Inactive'}</span></td>
+                    <td className="px-6 py-4">
+                      {unread > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <div className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">{unread}</div>
+                          <span className="text-xs text-red-500">new</span>
+                        </div>
+                      ) : (<span className="text-sm text-gray-400">0</span>)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <button onClick={() => handleChatClick(student.id)} className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <FaComments size={14} /> Chat
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {filteredStudents.length === 0 && <div className="text-center py-12 text-gray-500">No students found</div>}
     </div>
   );
 };
 
-export default StudentChatView;
+export default StudentsList;
