@@ -47,63 +47,71 @@ const StudentsList = () => {
   }, []);
 
   // ✅ جلب عدد الرسائل مباشرة من الـ API
-  const fetchUnreadFromAPI = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    const newCounts = { ...unreadCounts };
-    
-    for (const student of students) {
-      try {
-        const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+ // ✅ استبدلي fetchUnreadFromAPI بهذا الكود
+const fetchUnreadFromAPI = useCallback(async () => {
+  const token = localStorage.getItem('token');
+  const newCounts = { ...unreadCounts };
+  
+  console.log("🔄 Checking for new messages from API...");
+  
+  for (const student of students) {
+    try {
+      // جلب عدد رسائل الطالب من الـ API
+      const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (convRes.ok) {
+        const conversations = await convRes.json();
+        let totalStudentMessages = 0;
         
-        if (convRes.ok) {
-          const conversations = await convRes.json();
-          let totalStudentMessages = 0;
-          
-          for (const conv of conversations) {
-            const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (convDetailRes.ok) {
-              const convDetail = await convDetailRes.json();
-              const studentMsgCount = convDetail.messages?.filter(m => 
-                (m.sender === 'Student' || m.senderId === 'student')
-              ).length || 0;
-              totalStudentMessages += studentMsgCount;
-            }
+        for (const conv of conversations) {
+          const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (convDetailRes.ok) {
+            const convDetail = await convDetailRes.json();
+            const studentMsgCount = convDetail.messages?.filter(m => 
+              (m.sender === 'Student' || m.senderId === 'student')
+            ).length || 0;
+            totalStudentMessages += studentMsgCount;
           }
-          
-          const savedCount = localStorage.getItem(`student_messages_${student.id}`);
-          const prevCount = savedCount ? parseInt(savedCount) : 0;
-          
-          if (totalStudentMessages > prevCount) {
-            const newUnread = totalStudentMessages - prevCount;
-            const currentUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
-            const newTotal = currentUnread + newUnread;
-            localStorage.setItem(`unread_${student.id}`, newTotal.toString());
-            newCounts[student.id] = newTotal;
-            console.log(`🔔 New message for ${student.fullName}! +${newUnread} unread (total: ${newTotal})`);
-            
-            // ✅ إشعار توست
-            toast.success(`📩 New message from ${student.fullName}!`, {
-              duration: 3000,
-              position: 'top-right',
-              icon: '🔔'
-            });
-          } else {
-            newCounts[student.id] = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
-          }
-          
-          localStorage.setItem(`student_messages_${student.id}`, totalStudentMessages.toString());
         }
-      } catch (err) {
-        console.error(`Error checking student ${student.id}:`, err);
+        
+        // ✅ تحديث العداد
+        const savedCount = localStorage.getItem(`student_messages_${student.id}`);
+        const prevCount = savedCount ? parseInt(savedCount) : 0;
+        
+        // ✅ إذا فيه رسائل جديدة
+        if (totalStudentMessages > prevCount) {
+          const newUnread = totalStudentMessages - prevCount;
+          const currentUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
+          const newTotal = currentUnread + newUnread;
+          localStorage.setItem(`unread_${student.id}`, newTotal.toString());
+          newCounts[student.id] = newTotal;
+          console.log(`🔔 New message for ${student.fullName}! +${newUnread} (total: ${newTotal})`);
+          
+          // ✅ إشعار مرئي
+          toast.success(`📩 New message from ${student.fullName}!`, {
+            duration: 3000,
+            position: 'top-right',
+            icon: '🔔'
+          });
+        } else {
+          // ✅ جلب القيمة المخزنة
+          const storedUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
+          newCounts[student.id] = storedUnread;
+        }
+        
+        localStorage.setItem(`student_messages_${student.id}`, totalStudentMessages.toString());
       }
+    } catch (err) {
+      console.error(`Error checking student ${student.id}:`, err);
     }
-    
-    setUnreadCounts(newCounts);
-  }, [students, unreadCounts]);
+  }
+  
+  setUnreadCounts(newCounts);
+}, [students, unreadCounts]);
 
   useEffect(() => {
     let isMounted = true;
