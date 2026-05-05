@@ -32,21 +32,11 @@ const StudentChatView = () => {
     };
   }, []);
 
-  // حفظ عدد الرسائل في localStorage
+  // ✅ عند فتح الشات، إعادة تعيين العداد إلى الصفر
   useEffect(() => {
-    if (studentId && messages.length > 0) {
-      localStorage.setItem(`student_messages_${studentId}`, messages.length.toString());
-    }
-  }, [studentId, messages]);
-
-  // ✅ عند فتح الشات، إعادة تعيين العداد إلى الصفر (بدون API call غير موجود)
-  useEffect(() => {
-    const resetUnread = () => {
-      if (!studentId) return;
+    if (studentId) {
       localStorage.setItem(`unread_${studentId}`, '0');
-      localStorage.setItem(`student_messages_${studentId}`, '0');
-    };
-    resetUnread();
+    }
   }, [studentId]);
 
   // جلب المحادثة
@@ -95,6 +85,25 @@ const StudentChatView = () => {
         }
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        // ✅ تحديث العداد عند وجود رسائل جديدة
+        const studentMessagesCount = allMessages.filter(m => 
+          m.sender === 'Student' || m.senderId === 'student'
+        ).length;
+        
+        const savedCount = localStorage.getItem(`student_messages_${studentId}`);
+        const prevCount = savedCount ? parseInt(savedCount) : 0;
+        
+        if (studentMessagesCount > prevCount && prevCount > 0) {
+          const newUnread = studentMessagesCount - prevCount;
+          const currentUnread = parseInt(localStorage.getItem(`unread_${studentId}`) || '0');
+          const newTotal = currentUnread + newUnread;
+          localStorage.setItem(`unread_${studentId}`, newTotal.toString());
+          console.log(`📩 New messages! Student ${studentId}: +${newUnread} (total: ${newTotal})`);
+        }
+        
+        localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
+        
         setMessages(allMessages);
       }
     } catch (err) {
