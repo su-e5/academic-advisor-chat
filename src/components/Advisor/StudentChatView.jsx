@@ -32,7 +32,7 @@ const StudentChatView = () => {
     };
   }, []);
 
-  // ✅ عند فتح الشات، إعادة تعيين العداد إلى الصفر
+  // عند فتح الشات، نضيف reset للعداد
   useEffect(() => {
     if (studentId) {
       localStorage.setItem(`unread_${studentId}`, '0');
@@ -86,9 +86,10 @@ const StudentChatView = () => {
         
         allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
-        // ✅ تحديث العداد عند وجود رسائل جديدة
+        // ✅ تحديث العداد عند وجود رسائل جديدة من الطالب
         const studentMessagesCount = allMessages.filter(m => 
-          m.sender === 'Student' || m.senderId === 'student'
+          (m.sender === 'Student' || m.senderId === 'student') && 
+          m.sender !== 'Advisor'
         ).length;
         
         const savedCount = localStorage.getItem(`student_messages_${studentId}`);
@@ -97,9 +98,8 @@ const StudentChatView = () => {
         if (studentMessagesCount > prevCount && prevCount > 0) {
           const newUnread = studentMessagesCount - prevCount;
           const currentUnread = parseInt(localStorage.getItem(`unread_${studentId}`) || '0');
-          const newTotal = currentUnread + newUnread;
-          localStorage.setItem(`unread_${studentId}`, newTotal.toString());
-          console.log(`📩 New messages! Student ${studentId}: +${newUnread} (total: ${newTotal})`);
+          localStorage.setItem(`unread_${studentId}`, (currentUnread + newUnread).toString());
+          console.log(`📩 New message from student ${studentId}! +${newUnread} unread (total: ${currentUnread + newUnread})`);
         }
         
         localStorage.setItem(`student_messages_${studentId}`, studentMessagesCount.toString());
