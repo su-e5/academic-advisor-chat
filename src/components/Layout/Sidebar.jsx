@@ -19,6 +19,7 @@ const Sidebar = ({ onClose }) => {
       case 'advisor':
         return [
           { path: '/advisor', label: 'My Students', icon: FaUsers },
+          { path: '/advisor/registrations', label: 'Registrations', icon: FaFileUpload },
           { path: '/advisor/analytics', label: 'Analytics', icon: FaChartLine },
         ];
       case 'student':

@@ -69,6 +69,8 @@ export const updateUserRole = (userId, role) => api.put(`/Admin/users/${userId}/
 // ✅ للطلاب والمشرفين (من Chat Controller)
 export const getRegulations = () => api.get('/Chat/regulations');
 export const getRegulationById = (id) => api.get(`/Chat/regulations/${id}`);
+
+
 export const submitRegistration = (formData) => api.post('/Registration/submit', formData, {
   headers: { 'Content-Type': 'multipart/form-data' }
 });
