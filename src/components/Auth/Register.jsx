@@ -3,9 +3,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaEnvelope, FaLock, FaUser, FaGraduationCap, FaArrowRight, FaRobot, FaUniversity, FaBook, FaPhone, FaTelegram, FaChartLine } from "react-icons/fa";
 import toast from "react-hot-toast";
-import {  getUniversityEmails } from "../../services/api";
-import { register, login } from "../../services/api";
-
+import { register, getUniversityEmails } from "../../services/api";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -77,80 +75,56 @@ const Register = () => {
     }
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (formData.password !== formData.confirmPassword) {
-    toast.error("Passwords do not match");
-    return;
-  }
-  
-  if (formData.password.length < 6) {
-    toast.error("Password must be at least 6 characters");
-    return;
-  }
-  
-  if (!formData.universityEmail) {
-    toast.error("University email is required");
-    return;
-  }
-  
-  setLoading(true);
-  
-  try {
-    // 1. تسجيل مستخدم جديد
-    const registerResponse = await register({
-      fullName: formData.fullName,
-      email: formData.email,
-      universityEmail: formData.universityEmail,
-      password: formData.password,
-      role: "Student",
-      department: formData.department,
-      academicLevel: formData.academicLevel,
-      gpa: formData.gpa,
-      phoneNumber: formData.phoneNumber,
-      telegramUsername: formData.telegramUsername,
-    });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
-    console.log("Registration response:", registerResponse);
-    
-    if (registerResponse.status === 200 || registerResponse.status === 201) {
-      toast.success("Registration successful! Logging you in...");
-      
-      // ✅ 2. تسجيل دخول تلقائي
-      const loginResponse = await login(formData.email, formData.password);
-      
-      if (loginResponse.data?.token) {
-        // حفظ التوكن والمستخدم
-        localStorage.setItem('token', loginResponse.data.token);
-        localStorage.setItem('user', JSON.stringify(loginResponse.data));
-        
-        toast.success("Welcome! Redirecting...");
-        
-        // التوجيه حسب الدور
-        const role = loginResponse.data.role?.toLowerCase();
-        if (role === 'admin') {
-          navigate('/admin');
-        } else if (role === 'advisor') {
-          navigate('/advisor');
-        } else {
-          navigate('/chat');
-        }
-      } else {
-        // لو فشل تسجيل الدخول التلقائي، روح للـ Login
-        navigate("/login");
-      }
-    } else {
-      toast.error(registerResponse.data?.error || "Registration failed");
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
     }
-  } catch (err) {
-    console.error("Registration error:", err);
-    toast.error(err.response?.data?.error || "Registration failed");
-  } finally {
-    setLoading(false);
-  }
-};
-
+    
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    
+    if (!formData.universityEmail) {
+      toast.error("University email is required");
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // تسجيل مستخدم جديد فقط (بدون تسجيل دخول تلقائي)
+      const registerResponse = await register({
+        fullName: formData.fullName,
+        email: formData.email,
+        universityEmail: formData.universityEmail,
+        password: formData.password,
+        role: "Student",
+        department: formData.department,
+        academicLevel: formData.academicLevel,
+        gpa: formData.gpa,
+        phoneNumber: formData.phoneNumber,
+        telegramUsername: formData.telegramUsername,
+      });
+      
+      console.log("Registration response:", registerResponse);
+      
+      if (registerResponse.status === 200 || registerResponse.status === 201) {
+        toast.success("Registration successful! Please login.");
+        navigate("/login");
+      } else {
+        toast.error(registerResponse.data?.error || "Registration failed");
+      }
+    } catch (err) {
+      console.error("Registration error:", err);
+      toast.error(err.response?.data?.error || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
@@ -418,4 +392,4 @@ const Register = () => {
   );
 };
 
-export default Register; 
+export default Register;

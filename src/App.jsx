@@ -25,7 +25,7 @@ import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManag
 import ChooseAdvisor from "./components/Student/ChooseAdvisor";
 import { FaBars } from "react-icons/fa";
 
-// ✅ Public App - بدون AuthProvider
+// ✅ Public App - بدون AuthProvider (لصفحات Login و Register)
 const PublicApp = () => {
   return (
     <>
@@ -39,7 +39,7 @@ const PublicApp = () => {
   );
 };
 
-// ✅ Private App - مع AuthProvider
+// ✅ Private App - مع AuthProvider (لباقي التطبيق)
 const PrivateApp = () => {
   return (
     <AuthProvider>
@@ -48,7 +48,7 @@ const PrivateApp = () => {
   );
 };
 
-// ✅ الـ App اللي بيشتغل بعد AuthProvider
+// ✅ الـ App اللي بيشتغل بعد AuthProvider (المحتوى الرئيسي)
 const AuthenticatedApp = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
