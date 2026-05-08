@@ -96,6 +96,7 @@ const Register = () => {
     setLoading(true);
     
     try {
+      // تسجيل مستخدم جديد فقط (بدون تسجيل دخول تلقائي)
       const registerResponse = await register({
         fullName: formData.fullName,
         email: formData.email,
@@ -126,8 +127,8 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen py-8 px-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-      <div className="bg-white/30 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/40">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+      <div className="bg-white/30 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/40 max-h-[90vh] overflow-y-auto">
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 flex items-center justify-center shadow-lg">
             <FaRobot className="text-white text-3xl" />
