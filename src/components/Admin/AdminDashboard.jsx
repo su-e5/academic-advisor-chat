@@ -1,131 +1,351 @@
 // src/components/Admin/AdminDashboard.jsx
-import { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
-import { FaUsers,  FaChartLine, FaUserPlus } from 'react-icons/fa';
+import { 
+  FaUsers, FaUserGraduate, FaUserTie, FaComments, 
+  FaSpinner, FaTimes, FaMessage, FaRegClock, FaArrowRight 
+} from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import UsersManagement from './UsersManagement';
-import RegulationsManagement from './RegulationsManagement';
 
 const AdminDashboard = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalAdvisors: 0,
-    totalStudents: 0,
-    totalConversations: 0
-  });
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const isMounted = useRef(true);
-
-  // تحديد المحتوى المناسب بناءً على الـ URL
-  const activeContent = (() => {
-    if (location.pathname === '/admin/users') return 'users';
-    if (location.pathname === '/admin/regulations') return 'regulations';
-    return 'dashboard';
-  })();
+  const [showModal, setShowModal] = useState(false);
+  const [modalData, setModalData] = useState({ title: '', items: [], type: '' });
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // ✅ جلب البيانات فقط عندما نكون في الـ Dashboard
-  useEffect(() => {
-    if (activeContent !== 'dashboard') {
-      // إذا لم نكن في الـ Dashboard، ننهي التحميل فورًا
-      if (isMounted.current) {
-        setLoading(false);
-      }
-      return;
-    }
-
-    const fetchDashboardData = async () => {
+    const fetchDashboard = async () => {
       try {
         const response = await adminAPI.getDashboard();
-        if (isMounted.current) {
-          setStats(response.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-        if (error.response?.status === 403) {
-          toast.error('Session expired. Please login again.');
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          navigate('/login');
-        }
+        setStats(response.data);
+      } catch (err) {
+        console.error('Error fetching dashboard:', err);
+        toast.error('Failed to load dashboard');
       } finally {
-        if (isMounted.current) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
+    fetchDashboard();
+  }, []);
 
-    fetchDashboardData();
-  }, [activeContent, navigate]);
+  // ✅ دالة عرض التفاصيل عند الضغط على أي مربع
+  const handleCardClick = async (type, title) => {
+    setModalLoading(true);
+    setShowModal(true);
+    
+    try {
+      let data = [];
+      
+      switch (type) {
+        case 'users': {
+          const response = await adminAPI.getUsers();
+          data = response.data || [];
+          break;
+        }
+        case 'students': {
+          const response = await adminAPI.getUsers();
+          data = (response.data || []).filter(u => u.role === 'Student' || u.role === 'student');
+          break;
+        }
+        case 'advisors': {
+          const response = await adminAPI.getUsers();
+          data = (response.data || []).filter(u => u.role === 'Advisor' || u.role === 'advisor');
+          break;
+        }
+        case 'conversations': {
+          data = stats?.recentMessages || [];
+          break;
+        }
+        default: {
+          data = [];
+          break;
+        }
+      }
+      
+      setModalData({ title, items: data, type });
+    } catch (err) {
+      console.error(`Error fetching ${type}:`, err);
+      toast.error(`Failed to load ${title}`);
+      setModalData({ title, items: [], type });
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
-  const statCards = [
-    { title: 'Total Users', value: stats.totalUsers || 0, icon: FaUsers, color: 'bg-blue-500' },
-    { title: 'Advisors', value: stats.totalAdvisors || 0, icon: FaUserPlus, color: 'bg-green-500' },
-    { title: 'Students', value: stats.totalStudents || 0, icon: FaUsers, color: 'bg-purple-500' },
-    { title: 'Conversations', value: stats.totalConversations || 0, icon: FaChartLine, color: 'bg-orange-500' },
+  // تجهيز بيانات الـ Recent Activity
+  const getRecentActivities = () => {
+    const activities = [];
+    
+    if (stats?.recentMessages && stats.recentMessages.length > 0) {
+      stats.recentMessages.forEach(msg => {
+        activities.push({
+          id: msg.id,
+          type: 'message',
+          title: 'New Message',
+          description: `${msg.userName || 'User'} sent: "${msg.content?.substring(0, 50)}${msg.content?.length > 50 ? '...' : ''}"`,
+          time: msg.timestamp,
+          icon: <FaMessage className="text-blue-500" />
+        });
+      });
+    }
+    
+    activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+    return activities.slice(0, 10);
+  };
+
+  const activities = getRecentActivities();
+
+  // كروت Dashboard
+  const cards = [
+    {
+      id: 'users',
+      title: 'Total Users',
+      value: stats?.totalUsers || 0,
+      icon: <FaUsers className="text-white text-2xl" />,
+      color: 'from-blue-500 to-blue-600',
+    },
+    {
+      id: 'students',
+      title: 'Students',
+      value: stats?.totalStudents || 0,
+      icon: <FaUserGraduate className="text-white text-2xl" />,
+      color: 'from-green-500 to-green-600',
+    },
+    {
+      id: 'advisors',
+      title: 'Advisors',
+      value: stats?.totalAdvisors || 0,
+      icon: <FaUserTie className="text-white text-2xl" />,
+      color: 'from-purple-500 to-purple-600',
+    },
+    {
+      id: 'conversations',
+      title: 'Conversations',
+      value: stats?.totalConversations || 0,
+      icon: <FaComments className="text-white text-2xl" />,
+      color: 'from-orange-500 to-orange-600',
+    },
   ];
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500"></div>
+      <div className="flex justify-center py-12">
+        <FaSpinner className="animate-spin text-purple-500 text-4xl" />
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <div className="px-4 sm:px-6 lg:px-8 py-6">
-        
-        {/* Dashboard Content */}
-        {activeContent === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {statCards.map((stat, index) => (
-                <div key={index} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-500 text-sm">{stat.title}</p>
-                      <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
-                    </div>
-                    <div className={`w-10 h-10 rounded-xl ${stat.color} flex items-center justify-center`}>
-                      <stat.icon className="text-white text-lg" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <p className="text-gray-500 mt-1">Welcome back! Here's what's happening with your platform.</p>
+      </div>
 
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-4">Recent Activity</h3>
-              <div className="text-center py-8">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-                  <FaChartLine className="text-gray-400 text-xl" />
-                </div>
-                <p className="text-gray-500 text-sm">No recent activity to display</p>
-                <p className="text-gray-400 text-xs mt-1">Activity will appear here</p>
+      {/* Stats Cards - تفاعلية */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        {cards.map((card) => (
+          <div
+            key={card.id}
+            onClick={() => handleCardClick(card.id, card.title)}
+            className={`bg-gradient-to-r ${card.color} rounded-xl p-5 text-white shadow-lg cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-white/80 text-sm mb-1">{card.title}</p>
+                <p className="text-3xl font-bold">{card.value}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                {card.icon}
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-white/70 text-xs">
+              <span>Click to view details</span>
+              <FaArrowRight size={10} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Users by Role Chart */}
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+              <FaUsers className="text-purple-600" />
+            </div>
+            <h2 className="font-semibold text-gray-800">Users by Role</h2>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Students</span>
+                <span className="font-semibold">{stats?.totalStudents || 0}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${((stats?.totalStudents || 0) / (stats?.totalUsers || 1)) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Advisors</span>
+                <span className="font-semibold">{stats?.totalAdvisors || 0}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-purple-500 h-2 rounded-full"
+                  style={{ width: `${((stats?.totalAdvisors || 0) / (stats?.totalUsers || 1)) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Admins</span>
+                <span className="font-semibold">{stats?.totalAdmins || 0}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full"
+                  style={{ width: `${((stats?.totalAdmins || 0) / (stats?.totalUsers || 1)) * 100}%` }}
+                ></div>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Users Management */}
-        {activeContent === 'users' && <UsersManagement />}
-
-        {/* Regulations Management */}
-        {activeContent === 'regulations' && <RegulationsManagement />}
+        {/* Messages Stats */}
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+              <FaComments className="text-orange-600" />
+            </div>
+            <h2 className="font-semibold text-gray-800">Messages Overview</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="text-2xl font-bold text-gray-800">{stats?.totalMessages || 0}</p>
+              <p className="text-xs text-gray-500">Total Messages</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="text-2xl font-bold text-gray-800">{Math.round((stats?.totalMessages || 0) / (stats?.totalConversations || 1))}</p>
+              <p className="text-xs text-gray-500">Avg per Conversation</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="text-2xl font-bold text-gray-800">{stats?.pendingRegistrations || 0}</p>
+              <p className="text-xs text-gray-500">Pending Registrations</p>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="text-2xl font-bold text-gray-800">{stats?.totalRegulations || 0}</p>
+              <p className="text-xs text-gray-500">Total Regulations</p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Recent Activity Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+              <FaRegClock className="text-purple-600" />
+            </div>
+            <h2 className="font-semibold text-gray-800">Recent Activity</h2>
+          </div>
+        </div>
+        
+        <div className="divide-y divide-gray-100">
+          {activities.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <FaRegClock className="text-5xl mx-auto mb-3 opacity-30" />
+              <p>No recent activity to display</p>
+              <p className="text-sm mt-1">Activity will appear here</p>
+            </div>
+          ) : (
+            activities.map((activity) => (
+              <div key={activity.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    {activity.icon}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap justify-between items-start gap-2">
+                      <div>
+                        <p className="font-medium text-gray-800">{activity.title}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">{activity.description}</p>
+                      </div>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                        {new Date(activity.time).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Modal for Details */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">{modalData.title}</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+              >
+                <FaTimes size={20} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              {modalLoading ? (
+                <div className="flex justify-center py-8">
+                  <FaSpinner className="animate-spin text-purple-500 text-3xl" />
+                </div>
+              ) : modalData.items.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No data available</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {modalData.items.map((item, index) => (
+                    <div key={item.id || index} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex justify-between items-start flex-wrap gap-2">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">{item.fullName || item.userName || item.name || `Item ${index + 1}`}</p>
+                          <p className="text-sm text-gray-500 break-words">{item.email || item.content?.substring(0, 100)}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {item.role && (
+                            <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                              item.role === 'Admin' ? 'bg-red-100 text-red-700' :
+                              item.role === 'Advisor' ? 'bg-green-100 text-green-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {item.role}
+                            </span>
+                          )}
+                          {item.timestamp && (
+                            <span className="text-xs text-gray-400 whitespace-nowrap">
+                              {new Date(item.timestamp).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
