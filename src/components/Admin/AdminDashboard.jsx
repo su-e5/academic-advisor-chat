@@ -86,7 +86,7 @@ const AdminDashboard = () => {
           title: 'New Message',
           description: `${msg.userName || 'User'} sent: "${msg.content?.substring(0, 50)}${msg.content?.length > 50 ? '...' : ''}"`,
           time: msg.timestamp,
-          icon: <FaComment className="text-blue-500" />  // ✅ استخدمي FaComment
+          icon: <FaComment className="text-blue-500" />
         });
       });
     }
@@ -138,7 +138,8 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="p-6">
+    // ✅ الحاوية الرئيسية مع overflow-auto للسكرول
+    <div className="h-full overflow-auto p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
         <p className="text-gray-500 mt-1">Welcome back! Here's what's happening with your platform.</p>
@@ -259,7 +260,7 @@ const AdminDashboard = () => {
           </div>
         </div>
         
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
           {activities.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <FaRegClock className="text-5xl mx-auto mb-3 opacity-30" />

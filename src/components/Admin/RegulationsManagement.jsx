@@ -29,7 +29,6 @@ const RegulationsManagement = () => {
     return () => { isMounted.current = false; };
   }, []);
 
-  // ✅ استخدام useCallback لمنع إعادة تعريف الدالة
   const fetchRegulations = useCallback(async () => {
     try {
       const response = await adminAPI.getRegulations();
@@ -42,7 +41,7 @@ const RegulationsManagement = () => {
     }
   }, []);
 
-  // ✅ التحميل الأولي - استخدام async function داخل useEffect
+  // التحميل الأولي باستخدام async function داخل useEffect
   useEffect(() => {
     let isActive = true;
     
@@ -181,62 +180,69 @@ const RegulationsManagement = () => {
   );
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="relative w-full sm:w-72">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
-          <input
-            type="text"
-            placeholder="Search regulations..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
+    // ✅ الحاوية الرئيسية مع overflow-auto للسكرول
+    <div className="h-full flex flex-col">
+      {/* Header with Search and Add Button - ثابت */}
+      <div className="flex-shrink-0 p-4 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="relative w-full sm:w-72">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+            <input
+              type="text"
+              placeholder="Search regulations..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
+          <button
+            onClick={() => openModal()}
+            disabled={isSubmitting}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all text-sm font-medium disabled:opacity-50"
+          >
+            <FaPlus size={14} /> Add Regulation
+          </button>
         </div>
-        <button
-          onClick={() => openModal()}
-          disabled={isSubmitting}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all text-sm font-medium disabled:opacity-50"
-        >
-          <FaPlus size={14} /> Add Regulation
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredRegulations.map((reg) => (
-          <div key={reg.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100">
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-gray-800 text-base">{reg.question}</h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(reg.category)}`}>
-                    {reg.category}
-                  </span>
-                  {reg.attachmentUrl && (
-                    <a href={reg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-500">
-                      {getFileIcon(reg.attachmentUrl)}
-                    </a>
-                  )}
+      {/* ✅ Grid Container مع overflow-auto للكروت */}
+      <div className="flex-1 overflow-auto p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredRegulations.map((reg) => (
+            <div key={reg.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-gray-800 text-base">{reg.question}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(reg.category)}`}>
+                      {reg.category}
+                    </span>
+                    {reg.attachmentUrl && (
+                      <a href={reg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-500">
+                        {getFileIcon(reg.attachmentUrl)}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2 ml-2 flex-shrink-0">
+                  <button onClick={() => openModal(reg)} className="p-1.5 text-gray-400 hover:text-blue-500"><FaEdit size={14} /></button>
+                  <button onClick={() => deleteRegulation(reg.id)} className="p-1.5 text-gray-400 hover:text-red-500"><FaTrash size={14} /></button>
                 </div>
               </div>
-              <div className="flex gap-2 ml-2">
-                <button onClick={() => openModal(reg)} className="p-1.5 text-gray-400 hover:text-blue-500"><FaEdit size={14} /></button>
-                <button onClick={() => deleteRegulation(reg.id)} className="p-1.5 text-gray-400 hover:text-red-500"><FaTrash size={14} /></button>
-              </div>
+              <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">{reg.answer}</p>
+              {reg.keywords && <p className="text-xs text-gray-400 mt-2">🔑 {reg.keywords}</p>}
             </div>
-            <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">{reg.answer}</p>
-            {reg.keywords && <p className="text-xs text-gray-400 mt-2">🔑 {reg.keywords}</p>}
+          ))}
+        </div>
+
+        {filteredRegulations.length === 0 && (
+          <div className="text-center py-12 text-gray-500">
+            No regulations found
           </div>
-        ))}
+        )}
       </div>
 
-      {filteredRegulations.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          No regulations found
-        </div>
-      )}
-
-      {/* Modal */}
+      {/* Modal - بدون تغيير */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
