@@ -34,7 +34,7 @@ const Register = () => {
     { value: 4, label: "Fourth Year - Level 4" },
   ];
 
-   const departments = [
+  const departments = [
     "Computer Science",
     "Information Technology",
     "Information Systems",
@@ -101,7 +101,7 @@ const Register = () => {
         email: formData.email,
         universityEmail: formData.universityEmail,
         password: formData.password,
-        role: formData.role,
+        role: "Student",
         department: formData.department,
         academicLevel: formData.academicLevel,
         gpa: formData.gpa,
@@ -109,13 +109,26 @@ const Register = () => {
         telegramUsername: formData.telegramUsername,
       });
       
+      console.log("Registration response:", response);
+      
       if (response.status === 200 || response.status === 201) {
         toast.success("Registration successful! Please login.");
         navigate("/login");
+      } else {
+        toast.error(response.data?.error || "Registration failed");
       }
     } catch (err) {
       console.error("Registration error:", err);
-      toast.error(err.response?.data?.error || "Registration failed");
+      console.error("Error response:", err.response?.data);
+      
+      // عرض رسالة خطأ مناسبة
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || "Registration failed";
+      toast.error(errorMessage);
+      
+      // إذا كان الخطأ بسبب الإيميل الجامعي
+      if (errorMessage.includes("University email not recognized")) {
+        toast.error("This university email is not allowed. Please contact admin.");
+      }
     } finally {
       setLoading(false);
     }
