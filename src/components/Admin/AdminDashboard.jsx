@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
 import { 
   FaUsers, FaUserGraduate, FaUserTie, FaComments, 
-  FaSpinner, FaTimes, FaMessage, FaRegClock, FaArrowRight 
+  FaSpinner, FaTimes, FaComment, FaRegClock, FaArrowRight,
+ 
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
@@ -29,7 +30,7 @@ const AdminDashboard = () => {
     fetchDashboard();
   }, []);
 
-  // ✅ دالة عرض التفاصيل عند الضغط على أي مربع
+  // دالة عرض التفاصيل عند الضغط على أي مربع
   const handleCardClick = async (type, title) => {
     setModalLoading(true);
     setShowModal(true);
@@ -85,7 +86,7 @@ const AdminDashboard = () => {
           title: 'New Message',
           description: `${msg.userName || 'User'} sent: "${msg.content?.substring(0, 50)}${msg.content?.length > 50 ? '...' : ''}"`,
           time: msg.timestamp,
-          icon: <FaMessage className="text-blue-500" />
+          icon: <FaComment className="text-blue-500" />  // ✅ استخدمي FaComment
         });
       });
     }
