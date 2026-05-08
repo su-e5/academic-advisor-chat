@@ -25,6 +25,18 @@ import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManag
 import ChooseAdvisor from "./components/Student/ChooseAdvisor";
 import { FaBars } from "react-icons/fa";
 
+// ✅ Public Routes Component (من غير useAuth)
+const PublicRoutes = () => {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+};
+
+// ✅ Protected App Content (بيتشغل بس لما يكون فى user)
 const AppContent = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -90,10 +102,6 @@ const AppContent = () => {
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 sm:p-6 lg:p-8">
             <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-
               {/* Redirect Root */}
               <Route
                 path="/"
@@ -240,7 +248,24 @@ const AppContent = () => {
   );
 };
 
+// ✅ الـ App النهائي
 function App() {
+  const location = useLocation();  // ✅ من غير user و loading
+
+  // تحديد إذا كان المستخدم في صفحة عامة (login/register)
+  const isPublicRoute = location.pathname === "/login" || location.pathname === "/register";
+
+  // إذا كان في صفحة عامة، مش محتاج الـ Layout
+  if (isPublicRoute) {
+    return (
+      <AuthProvider>
+        <PublicRoutes />
+        <Toaster position="top-right" />
+      </AuthProvider>
+    );
+  }
+
+  // إذا كان في صفحة محمية، نستخدم الـ Layout الكامل
   return (
     <AuthProvider>
       <AppContent />
