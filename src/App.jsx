@@ -25,25 +25,32 @@ import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManag
 import ChooseAdvisor from "./components/Student/ChooseAdvisor";
 import { FaBars } from "react-icons/fa";
 
-// ✅ Public Routes - من غير AuthProvider خالص
-const PublicRoutes = () => {
-  return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
-  );
-};
+// ✅ Public Routes - من غير AuthProvider ولا أي حاجة
+function App() {
+  const location = useLocation();
+  const isPublicRoute = location.pathname === "/login" || location.pathname === "/register";
 
-// ✅ Protected App Content - مع AuthProvider
-const AppContent = () => {
+  // ✅ الصفحات العامة أولاً
+  if (isPublicRoute) {
+    return (
+      <>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+        <Toaster position="top-right" />
+      </>
+    );
+  }
+
+  // ✅ باقى التطبيق (بعد الـ Login)
   return (
     <AuthProvider>
       <AuthenticatedApp />
     </AuthProvider>
   );
-};
+}
 
 // ✅ الـ App اللي بيشتغل بعد AuthProvider
 const AuthenticatedApp = () => {
@@ -252,23 +259,4 @@ const AuthenticatedApp = () => {
   );
 };
 
-// ✅ الـ App الرئيسي
-function App() {
-  const location = useLocation();
-  const isPublicRoute = location.pathname === "/login" || location.pathname === "/register";
-
-  // الصفحات العامة من غير AuthProvider
-  if (isPublicRoute) {
-    return (
-      <>
-        <PublicRoutes />
-        <Toaster position="top-right" />
-      </>
-    );
-  }
-
-  // الصفحات المحمية مع AuthProvider
-  return <AppContent />;
-}
-
-export default App; 
+export default App;
