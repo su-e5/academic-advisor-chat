@@ -9,6 +9,8 @@ import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
 import AIChatAssistant from "./components/Chat/AIChatAssistant";
 import AdminDashboard from "./components/Admin/AdminDashboard";
+import UsersManagement from "./components/Admin/UsersManagement";
+import RegulationsManagement from "./components/Admin/RegulationsManagement";
 import StudentsList from "./components/Advisor/StudentsList";
 import StudentChatView from "./components/Advisor/StudentChatView";
 import Profile from "./components/User/Profile";
@@ -21,7 +23,6 @@ import RegistrationForm from "./components/Student/RegistrationForm";
 import StudentRegistrations from "./components/Advisor/StudentRegistrations";
 import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManagement";
 import ChooseAdvisor from "./components/Student/ChooseAdvisor";
-
 import { FaBars } from "react-icons/fa";
 
 const AppContent = () => {
@@ -53,16 +54,12 @@ const AppContent = () => {
   }
 
   return (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col"
-      style={{ height: "100%" }}
-    >
+    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ height: "100%" }}>
       {user && <Header />}
 
       <div className="flex flex-1" style={{ minHeight: 0 }}>
         {showSidebar && (
           <>
-            {/* Mobile Menu Button - لون غامق عشان يبان */}
             <button
               onClick={() => setMobileSidebarOpen(true)}
               className="lg:hidden fixed bottom-6 right-6 z-50 p-3 bg-gray-800 text-white rounded-full shadow-lg hover:bg-gray-900 transition-all duration-200 hover:scale-110"
@@ -70,7 +67,6 @@ const AppContent = () => {
               <FaBars size={20} />
             </button>
 
-            {/* Mobile Sidebar Overlay - نفس الشيء */}
             <div
               className={`fixed inset-0 z-40 lg:hidden transition-all duration-300 ${mobileSidebarOpen ? "visible" : "invisible"}`}
             >
@@ -85,23 +81,20 @@ const AppContent = () => {
               </div>
             </div>
 
-            {/* Desktop Sidebar - يظهر على lg فأكبر (أكبر من 1024px) */}
-            <div
-              className="hidden lg:block flex-shrink-0"
-              style={{ height: "100%" }}
-            >
+            <div className="hidden lg:block flex-shrink-0" style={{ height: "100%" }}>
               <Sidebar />
             </div>
           </>
         )}
 
-        {/* Main Content - takes full height */}
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 sm:p-6 lg:p-8">
             <Routes>
+              {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
 
+              {/* Redirect Root */}
               <Route
                 path="/"
                 element={
@@ -117,57 +110,7 @@ const AppContent = () => {
                 }
               />
 
-              <Route
-                path="/admin/university-emails"
-                element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
-                    <UniversityEmailsManagement />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/choose-advisor"
-                element={
-                  <ProtectedRoute allowedRoles={["student"]}>
-                    <ChooseAdvisor />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/advisor/registrations"
-                element={
-                  <ProtectedRoute allowedRoles={["advisor", "admin"]}>
-                    <StudentRegistrations />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/registration"
-                element={
-                  <ProtectedRoute allowedRoles={["student"]}>
-                    <RegistrationForm />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/advisor-chat"
-                element={
-                  <ProtectedRoute allowedRoles={["student"]}>
-                    <AdvisorMessages />
-                  </ProtectedRoute>
-                }
-              />
+              {/* Admin Routes */}
               <Route
                 path="/admin"
                 element={
@@ -180,7 +123,7 @@ const AppContent = () => {
                 path="/admin/users"
                 element={
                   <ProtectedRoute allowedRoles={["admin"]}>
-                    <AdminDashboard />
+                    <UsersManagement />
                   </ProtectedRoute>
                 }
               />
@@ -188,15 +131,24 @@ const AppContent = () => {
                 path="/admin/regulations"
                 element={
                   <ProtectedRoute allowedRoles={["admin"]}>
-                    <AdminDashboard />
+                    <RegulationsManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/university-emails"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <UniversityEmailsManagement />
                   </ProtectedRoute>
                 }
               />
 
+              {/* Advisor Routes */}
               <Route
                 path="/advisor"
                 element={
-                  <ProtectedRoute allowedRoles={["advisor"]}>
+                  <ProtectedRoute allowedRoles={["advisor", "admin"]}>
                     <StudentsList />
                   </ProtectedRoute>
                 }
@@ -204,12 +156,45 @@ const AppContent = () => {
               <Route
                 path="/advisor/chat/:studentId"
                 element={
-                  <ProtectedRoute allowedRoles={["advisor"]}>
+                  <ProtectedRoute allowedRoles={["advisor", "admin"]}>
                     <StudentChatView />
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/advisor/analytics"
+                element={
+                  <ProtectedRoute allowedRoles={["advisor", "admin"]}>
+                    <AdvisorAnalytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/advisor/registrations"
+                element={
+                  <ProtectedRoute allowedRoles={["advisor", "admin"]}>
+                    <StudentRegistrations />
+                  </ProtectedRoute>
+                }
+              />
 
+              {/* Student Routes */}
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <AIChatAssistant />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/regulations"
                 element={
@@ -218,15 +203,33 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
-
               <Route
-                path="/advisor/analytics"
+                path="/advisor-chat"
                 element={
-                  <ProtectedRoute allowedRoles={["advisor"]}>
-                    <AdvisorAnalytics />
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <AdvisorMessages />
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/registration"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <RegistrationForm />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/choose-advisor"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <ChooseAdvisor />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
         </main>
