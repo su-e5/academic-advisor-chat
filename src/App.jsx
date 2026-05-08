@@ -19,6 +19,8 @@ import RegulationsView from "./components/Student/RegulationsView";
 import AdvisorMessages from "./components/Student/AdvisorMessages";
 import RegistrationForm from "./components/Student/RegistrationForm";
 import StudentRegistrations from "./components/Advisor/StudentRegistrations";
+import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManagement";
+import ChooseAdvisor from "./components/Student/ChooseAdvisor";
 
 import { FaBars } from "react-icons/fa";
 
@@ -114,6 +116,25 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
+
+              <Route
+                path="/admin/university-emails"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <UniversityEmailsManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/choose-advisor"
+                element={
+                  <ProtectedRoute allowedRoles={["student"]}>
+                    <ChooseAdvisor />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/advisor/registrations"
                 element={

@@ -3,7 +3,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { FaCommentDots } from 'react-icons/fa'
-import { FaHome, FaRobot, FaUser, FaUsers, FaBook, FaChartLine, FaTimes, FaGavel , FaFileUpload } from 'react-icons/fa';
+import { FaUserTie , FaEnvelope , FaHome, FaRobot, FaUser, FaUsers, FaBook, FaChartLine, FaTimes, FaGavel , FaFileUpload } from 'react-icons/fa';
 
 const Sidebar = ({ onClose }) => {
   const { user } = useAuth();
@@ -15,6 +15,7 @@ const Sidebar = ({ onClose }) => {
           { path: '/admin', label: 'Dashboard', icon: FaHome },
           { path: '/admin/users', label: 'Users', icon: FaUsers },
           { path: '/admin/regulations', label: 'Regulations', icon: FaBook },
+          { path: '/admin/university-emails', label: 'University Emails', icon: FaEnvelope },
         ];
       case 'advisor':
         return [
@@ -28,6 +29,7 @@ const Sidebar = ({ onClose }) => {
               { path: '/registration', label: 'Registration', icon: FaFileUpload },
           { path: '/regulations', label: 'Regulations', icon: FaGavel },  // ✅ أضيفي Regulations للطالب
           { path: '/profile', label: 'Profile', icon: FaUser },
+           { path: '/choose-advisor', label: 'Choose Advisor', icon: FaUserTie }, 
           { path: '/advisor-chat', label: 'Advisor Chat', icon: FaCommentDots },
         ];
       default:

@@ -1,7 +1,7 @@
 // src/components/User/Profile.jsx
-import  { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { FaUser, FaEnvelope, FaPhone, FaKey, FaSave, FaEdit, FaTimes, FaUserCircle } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaPhone, FaKey, FaSave, FaEdit, FaTimes, FaUserCircle, FaUniversity, FaChartLine, FaTelegram } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 
 const Profile = () => {
@@ -9,38 +9,29 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [academicLevel, setAcademicLevel] = useState(user?.academicLevel || 1);
-
 
   const academicLevels = [
-  { value: 1, label: "First Year - Level 1" },
-  { value: 2, label: "Second Year - Level 2" },
-  { value: 3, label: "Third Year - Level 3" },
-  { value: 4, label: "Fourth Year - Level 4" },
-];
-  
+    { value: 1, label: "First Year - Level 1" },
+    { value: 2, label: "Second Year - Level 2" },
+    { value: 3, label: "Third Year - Level 3" },
+    { value: 4, label: "Fourth Year - Level 4" },
+  ];
+
   const [formData, setFormData] = useState({
     fullName: user?.fullName || user?.name || '',
     email: user?.email || '',
-    phone: user?.phone || ''
+    department: user?.department || '',
+    academicLevel: user?.academicLevel || 1,
+    phoneNumber: user?.phoneNumber || '',
+    gpa: user?.gpa || 0,
+    telegramUsername: user?.telegramUsername || '',
   });
-  
+
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-
-
-<select
-  value={academicLevel}
-  onChange={(e) => setAcademicLevel(parseInt(e.target.value))}
-  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
->
-  {academicLevels.map(level => (
-    <option key={level.value} value={level.value}>{level.label}</option>
-  ))}
-</select>
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
@@ -78,12 +69,25 @@ const Profile = () => {
     }
   };
 
+  const getRoleBadge = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">Administrator</span>;
+      case 'advisor':
+        return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Academic Advisor</span>;
+      case 'student':
+        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Student</span>;
+      default:
+        return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">{role}</span>;
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 flex items-center justify-center">
             <FaUser className="text-white text-lg" />
           </div>
           <div>
@@ -96,14 +100,21 @@ const Profile = () => {
       {/* Profile Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Profile Header */}
-        <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-5 py-5">
+        <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-violet-600 px-5 py-5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
-              <FaUserCircle className="text-white text-2xl" />
+              <FaUserCircle className="text-white text-3xl" />
             </div>
-            <div>
+            <div className="flex-1">
               <h2 className="text-lg font-bold text-white">{formData.fullName || user?.fullName || user?.name}</h2>
-              <p className="text-white/80 text-sm mt-0.5 capitalize">{user?.role}</p>
+              <div className="flex items-center gap-2 mt-1">
+                {getRoleBadge(user?.role)}
+                {user?.role === 'student' && user?.academicLevel && (
+                  <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">
+                    Level {user.academicLevel}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -118,7 +129,7 @@ const Profile = () => {
             {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-all text-sm"
+                className="flex items-center gap-2 px-3 py-1.5 text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-all text-sm"
               >
                 <FaEdit size={14} />
                 Edit
@@ -145,7 +156,7 @@ const Profile = () => {
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                     disabled={!isEditing}
-                    className={`w-full input-field pl-9 py-2 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
+                    className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
                   />
                 </div>
               </div>
@@ -158,33 +169,101 @@ const Profile = () => {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    disabled={true}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 text-sm cursor-not-allowed"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <div className="relative">
+                  <FaUniversity className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                  <input
+                    type="text"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     disabled={!isEditing}
-                    className={`w-full input-field pl-9 py-2 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
+                    className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <div className="relative">
-                  <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    disabled={!isEditing}
-                    className={`w-full input-field pl-9 py-2 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
-                    placeholder="Not provided"
-                  />
-                </div>
-              </div>
+              {user?.role === 'student' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Academic Level</label>
+                    <div className="relative">
+                      <FaUniversity className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                      <select
+                        value={formData.academicLevel}
+                        onChange={(e) => setFormData({ ...formData, academicLevel: parseInt(e.target.value) })}
+                        disabled={!isEditing}
+                        className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
+                      >
+                        {academicLevels.map(level => (
+                          <option key={level.value} value={level.value}>{level.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">GPA (0.0 - 4.0)</label>
+                    <div className="relative">
+                      <FaChartLine className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="4"
+                        value={formData.gpa}
+                        onChange={(e) => setFormData({ ...formData, gpa: parseFloat(e.target.value) })}
+                        disabled={!isEditing}
+                        className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number (WhatsApp)</label>
+                    <div className="relative">
+                      <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                      <input
+                        type="tel"
+                        value={formData.phoneNumber}
+                        onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                        disabled={!isEditing}
+                        placeholder="+20123456789"
+                        className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Username</label>
+                    <div className="relative">
+                      <FaTelegram className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                      <input
+                        type="text"
+                        value={formData.telegramUsername}
+                        onChange={(e) => setFormData({ ...formData, telegramUsername: e.target.value })}
+                        disabled={!isEditing}
+                        placeholder="@username"
+                        className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${!isEditing ? 'bg-gray-50 text-gray-500' : ''}`}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {isEditing && (
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-all flex items-center gap-2 disabled:opacity-50 text-sm"
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-lg hover:from-purple-700 hover:to-violet-700 transition-all flex items-center gap-2 disabled:opacity-50 text-sm"
                   >
                     <FaSave size={14} />
                     {loading ? 'Saving...' : 'Save Changes'}
@@ -208,10 +287,10 @@ const Profile = () => {
             {!isChangingPassword ? (
               <button
                 onClick={() => setIsChangingPassword(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-all text-sm"
+                className="flex items-center gap-2 px-3 py-1.5 text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-all text-sm"
               >
                 <FaKey size={14} />
-                Change
+                Change Password
               </button>
             ) : (
               <button
@@ -235,7 +314,7 @@ const Profile = () => {
                       type="password"
                       value={passwordData.currentPassword}
                       onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                      className="w-full input-field pl-9 py-2 text-sm"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       required
                     />
                   </div>
@@ -249,7 +328,7 @@ const Profile = () => {
                       type="password"
                       value={passwordData.newPassword}
                       onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                      className="w-full input-field pl-9 py-2 text-sm"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       required
                     />
                   </div>
@@ -264,7 +343,7 @@ const Profile = () => {
                       type="password"
                       value={passwordData.confirmPassword}
                       onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                      className="w-full input-field pl-9 py-2 text-sm"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       required
                     />
                   </div>
@@ -274,7 +353,7 @@ const Profile = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-all flex items-center gap-2 disabled:opacity-50 text-sm"
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-violet-600 text-white rounded-lg hover:from-purple-700 hover:to-violet-700 transition-all flex items-center gap-2 disabled:opacity-50 text-sm"
                   >
                     <FaSave size={14} />
                     {loading ? 'Updating...' : 'Update Password'}
@@ -289,7 +368,7 @@ const Profile = () => {
       {/* Account Info */}
       <div className="mt-4 bg-gray-50 rounded-lg p-3 text-center">
         <p className="text-xs text-gray-500">
-          Member since {new Date().getFullYear()} • Academic Advisor System
+          Member since {user?.createdAt ? new Date(user.createdAt).getFullYear() : new Date().getFullYear()} • Academic Advisor System
         </p>
       </div>
     </div>
