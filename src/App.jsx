@@ -25,7 +25,7 @@ import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManag
 import ChooseAdvisor from "./components/Student/ChooseAdvisor";
 import { FaBars } from "react-icons/fa";
 
-// ✅ Public Routes Component (من غير useAuth)
+// ✅ Public Routes - من غير AuthProvider خالص
 const PublicRoutes = () => {
   return (
     <Routes>
@@ -36,8 +36,17 @@ const PublicRoutes = () => {
   );
 };
 
-// ✅ Protected App Content (بيتشغل بس لما يكون فى user)
+// ✅ Protected App Content - مع AuthProvider
 const AppContent = () => {
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
+  );
+};
+
+// ✅ الـ App اللي بيشتغل بعد AuthProvider
+const AuthenticatedApp = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -102,7 +111,6 @@ const AppContent = () => {
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 sm:p-6 lg:p-8">
             <Routes>
-              {/* Redirect Root */}
               <Route
                 path="/"
                 element={
@@ -118,7 +126,6 @@ const AppContent = () => {
                 }
               />
 
-              {/* Admin Routes */}
               <Route
                 path="/admin"
                 element={
@@ -152,7 +159,6 @@ const AppContent = () => {
                 }
               />
 
-              {/* Advisor Routes */}
               <Route
                 path="/advisor"
                 element={
@@ -186,7 +192,6 @@ const AppContent = () => {
                 }
               />
 
-              {/* Student Routes */}
               <Route
                 path="/profile"
                 element={
@@ -236,7 +241,6 @@ const AppContent = () => {
                 }
               />
 
-              {/* Fallback */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
@@ -248,29 +252,23 @@ const AppContent = () => {
   );
 };
 
-// ✅ الـ App النهائي
+// ✅ الـ App الرئيسي
 function App() {
-  const location = useLocation();  // ✅ من غير user و loading
-
-  // تحديد إذا كان المستخدم في صفحة عامة (login/register)
+  const location = useLocation();
   const isPublicRoute = location.pathname === "/login" || location.pathname === "/register";
 
-  // إذا كان في صفحة عامة، مش محتاج الـ Layout
+  // الصفحات العامة من غير AuthProvider
   if (isPublicRoute) {
     return (
-      <AuthProvider>
+      <>
         <PublicRoutes />
         <Toaster position="top-right" />
-      </AuthProvider>
+      </>
     );
   }
 
-  // إذا كان في صفحة محمية، نستخدم الـ Layout الكامل
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
+  // الصفحات المحمية مع AuthProvider
+  return <AppContent />;
 }
 
-export default App;
+export default App; 
