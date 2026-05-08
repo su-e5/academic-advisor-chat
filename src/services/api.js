@@ -64,6 +64,13 @@ export const toggleUserStatus = (userId) => api.put(`/Admin/users/${userId}/togg
 export const deleteUser = (userId) => api.delete(`/Admin/users/${userId}`);
 export const changeUserRole = (userId, newRole) => api.put(`/Admin/users/${userId}/change-role`, { newRole });
 export const updateUserRole = (userId, role) => api.put(`/Admin/users/${userId}/role`, { role });
+export const chooseAdvisor = (advisorId) => api.post('/Student/choose-advisor', null, { params: { advisorId } });
+export const getUniversityEmails = () => api.get('/Admin/university-emails');
+export const addUniversityEmail = (email) => api.post('/Admin/add-university-email', { email });
+export const addMultipleUniversityEmails = (emails) => api.post('/Admin/add-university-emails', { emails });
+export const deleteUniversityEmail = (id) => api.delete(`/Admin/university-emails/${id}`);
+export const deleteAllUniversityEmails = () => api.delete('/Admin/university-emails-all');
+
 
 // ==================== REGULATIONS ====================
 // ✅ للطلاب والمشرفين (من Chat Controller)
@@ -94,6 +101,8 @@ export const getAdvisorConversation = (conversationId) => api.get(`/Advisor/conv
 export const sendMessageToStudent = (studentId, message) => api.post(`/Advisor/students/${studentId}/send-message`, message);
 export const broadcastToLevel = (level, message) => api.post('/Advisor/broadcast-to-level', { level, message });
 export const getAdvisorAnalytics = () => api.get('/Advisor/analytics');
+export const getAvailableAdvisors = () => api.get('/Advisor/available-advisors');
+
 export const getStudentStatsByLevel = () => api.get('/Advisor/students/stats-by-level');
 export const getStudentsWithSubmittedForms = (level = null) => {
   const url = level ? `/Advisor/students/submitted-forms?level=${level}` : '/Advisor/students/submitted-forms';
