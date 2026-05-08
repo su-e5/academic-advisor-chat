@@ -19,7 +19,7 @@ const Register = () => {
     universityEmail: "",
     password: "",
     confirmPassword: "",
-    role: "Student",
+    role: "student",
     department: "",
     academicLevel: 1,
     gpa: 0,
