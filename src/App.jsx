@@ -1,57 +1,49 @@
-// src/App.jsx
 import { useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "./hooks/useAuth";
 import { AuthProvider } from "./components/Auth/AuthProvider";
 import ProtectedRoute from "./components/Common/ProtectedRoute";
+
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
+
 import AIChatAssistant from "./components/Chat/AIChatAssistant";
+
 import AdminDashboard from "./components/Admin/AdminDashboard";
 import UsersManagement from "./components/Admin/UsersManagement";
 import RegulationsManagement from "./components/Admin/RegulationsManagement";
+import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManagement";
+
 import StudentsList from "./components/Advisor/StudentsList";
 import StudentChatView from "./components/Advisor/StudentChatView";
+import AdvisorAnalytics from "./components/Advisor/AdvisorAnalytics";
+import StudentRegistrations from "./components/Advisor/StudentRegistrations";
+
 import Profile from "./components/User/Profile";
+
 import Header from "./components/Layout/Header";
 import Sidebar from "./components/Layout/Sidebar";
-import AdvisorAnalytics from "./components/Advisor/AdvisorAnalytics";
+
 import RegulationsView from "./components/Student/RegulationsView";
 import AdvisorMessages from "./components/Student/AdvisorMessages";
 import RegistrationForm from "./components/Student/RegistrationForm";
-import StudentRegistrations from "./components/Advisor/StudentRegistrations";
-import UniversityEmailsManagement from "./components/Admin/UniversityEmailsManagement";
 import ChooseAdvisor from "./components/Student/ChooseAdvisor";
+
 import { FaBars } from "react-icons/fa";
 
-// ✅ Public App - بدون AuthProvider (لصفحات Login و Register)
-const PublicApp = () => {
-  return (
-    <>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-      <Toaster position="top-right" />
-    </>
-  );
-};
-
-// ✅ Private App - مع AuthProvider (لباقي التطبيق)
-const PrivateApp = () => {
+function App() {
   return (
     <AuthProvider>
-      <AuthenticatedApp />
+      <MainApp />
     </AuthProvider>
   );
-};
+}
 
-// ✅ الـ App اللي بيشتغل بعد AuthProvider (المحتوى الرئيسي)
-const AuthenticatedApp = () => {
+const MainApp = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const noSidebarPages = ["/chat"];
@@ -65,8 +57,27 @@ const AuthenticatedApp = () => {
     );
   }
 
+  // صفحات عامة
+  const isPublicRoute =
+    location.pathname === "/login" ||
+    location.pathname === "/register";
+
+  if (isPublicRoute) {
+    return (
+      <>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Routes>
+
+        <Toaster position="top-right" />
+      </>
+    );
+  }
+
   const role = user?.role?.toLowerCase();
 
+  // صفحة الشات
   if (location.pathname === "/chat") {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -78,7 +89,10 @@ const AuthenticatedApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ height: "100%" }}>
+    <div
+      className="min-h-screen bg-gray-50 flex flex-col"
+      style={{ height: "100%" }}
+    >
       {user && <Header />}
 
       <div className="flex flex-1" style={{ minHeight: 0 }}>
@@ -92,20 +106,32 @@ const AuthenticatedApp = () => {
             </button>
 
             <div
-              className={`fixed inset-0 z-40 lg:hidden transition-all duration-300 ${mobileSidebarOpen ? "visible" : "invisible"}`}
+              className={`fixed inset-0 z-40 lg:hidden transition-all duration-300 ${
+                mobileSidebarOpen ? "visible" : "invisible"
+              }`}
             >
               <div
-                className={`absolute inset-0 bg-black transition-opacity duration-300 ${mobileSidebarOpen ? "opacity-50" : "opacity-0"}`}
+                className={`absolute inset-0 bg-black transition-opacity duration-300 ${
+                  mobileSidebarOpen ? "opacity-50" : "opacity-0"
+                }`}
                 onClick={() => setMobileSidebarOpen(false)}
               />
+
               <div
-                className={`absolute left-0 top-0 bottom-0 w-64 transform transition-transform duration-300 ease-out ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+                className={`absolute left-0 top-0 bottom-0 w-64 transform transition-transform duration-300 ease-out ${
+                  mobileSidebarOpen
+                    ? "translate-x-0"
+                    : "-translate-x-full"
+                }`}
               >
                 <Sidebar onClose={() => setMobileSidebarOpen(false)} />
               </div>
             </div>
 
-            <div className="hidden lg:block flex-shrink-0" style={{ height: "100%" }}>
+            <div
+              className="hidden lg:block flex-shrink-0"
+              style={{ height: "100%" }}
+            >
               <Sidebar />
             </div>
           </>
@@ -129,6 +155,7 @@ const AuthenticatedApp = () => {
                 }
               />
 
+              {/* Admin */}
               <Route
                 path="/admin"
                 element={
@@ -137,6 +164,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/admin/users"
                 element={
@@ -145,6 +173,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/admin/regulations"
                 element={
@@ -153,6 +182,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/admin/university-emails"
                 element={
@@ -162,6 +192,7 @@ const AuthenticatedApp = () => {
                 }
               />
 
+              {/* Advisor */}
               <Route
                 path="/advisor"
                 element={
@@ -170,6 +201,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/advisor/chat/:studentId"
                 element={
@@ -178,6 +210,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/advisor/analytics"
                 element={
@@ -186,6 +219,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/advisor/registrations"
                 element={
@@ -195,14 +229,7 @@ const AuthenticatedApp = () => {
                 }
               />
 
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                }
-              />
+              {/* Student */}
               <Route
                 path="/chat"
                 element={
@@ -211,6 +238,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/regulations"
                 element={
@@ -219,6 +247,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/advisor-chat"
                 element={
@@ -227,6 +256,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/registration"
                 element={
@@ -235,6 +265,7 @@ const AuthenticatedApp = () => {
                   </ProtectedRoute>
                 }
               />
+
               <Route
                 path="/choose-advisor"
                 element={
@@ -244,6 +275,17 @@ const AuthenticatedApp = () => {
                 }
               />
 
+              {/* Profile */}
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Default */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
@@ -254,13 +296,5 @@ const AuthenticatedApp = () => {
     </div>
   );
 };
-
-// ✅ الـ App الرئيسي: يختار Public أو Private حسب الرابط
-function App() {
-  const location = useLocation();
-  const isPublicRoute = location.pathname === "/login" || location.pathname === "/register";
-
-  return isPublicRoute ? <PublicApp /> : <PrivateApp />;
-}
 
 export default App;

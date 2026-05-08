@@ -1,48 +1,38 @@
-// src/components/Auth/Login.jsx
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaRobot } from "react-icons/fa";
-import toast from "react-hot-toast";
-import { login } from "../../services/api";
+import { Link } from "react-router-dom";
+import {
+  FaEnvelope,
+  FaLock,
+  FaEye,
+  FaEyeSlash,
+  FaArrowRight,
+  FaRobot,
+} from "react-icons/fa";
+
+import { useAuth } from "../../hooks/useAuth";
 
 const Login = () => {
+  const { login } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!email || !password) {
-      toast.error("Please enter both email and password");
       return;
     }
+
     setLoading(true);
-    
+
     try {
-      const response = await login(email, password);
-      const { token, role, fullName } = response.data;
-      
-      if (token) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(response.data));
-        toast.success(`Welcome back, ${fullName || email}!`);
-        
-        // توجيه حسب الدور
-        if (role?.toLowerCase() === 'admin') {
-          navigate('/admin');
-        } else if (role?.toLowerCase() === 'advisor') {
-          navigate('/advisor');
-        } else {
-          navigate('/chat');
-        }
-      } else {
-        toast.error("Invalid response from server");
-      }
+      await login(email, password);
     } catch (err) {
-      console.error("Login error:", err);
-      toast.error(err.response?.data?.message || "Login failed");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -55,17 +45,25 @@ const Login = () => {
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 flex items-center justify-center shadow-lg">
             <FaRobot className="text-white text-3xl" />
           </div>
+
           <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 via-purple-500 to-violet-600 bg-clip-text text-transparent">
             Welcome to UniGuide
           </h2>
-          <p className="text-gray-600 text-sm sm:text-base mt-2">Sign in to continue</p>
+
+          <p className="text-gray-600 text-sm sm:text-base mt-2">
+            Sign in to continue
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </label>
+
             <div className="relative group">
               <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+
               <input
                 type="email"
                 value={email}
@@ -79,9 +77,13 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+
             <div className="relative group">
               <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
@@ -91,12 +93,17 @@ const Login = () => {
                 required
                 disabled={loading}
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-500"
               >
-                {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                {showPassword ? (
+                  <FaEyeSlash size={18} />
+                ) : (
+                  <FaEye size={18} />
+                )}
               </button>
             </div>
           </div>
@@ -118,8 +125,11 @@ const Login = () => {
         </form>
 
         <p className="text-center mt-6 text-gray-500 text-sm">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-purple-500 hover:text-purple-600 font-semibold">
+          Don't have an account?{" "}
+          <Link
+            to="/register"
+            className="text-purple-500 hover:text-purple-600 font-semibold"
+          >
             Sign up
           </Link>
         </p>
