@@ -128,7 +128,13 @@ export const adminAPI = {
   createRegulation: createRegulation,
   updateRegulation: updateRegulation,
   deleteRegulation: deleteRegulation,
+    getUniversityEmails: getUniversityEmails,  
+  addUniversityEmail: addUniversityEmail,
+  addMultipleUniversityEmails: addMultipleUniversityEmails,
+  deleteUniversityEmail: deleteUniversityEmail,
+  deleteAllUniversityEmails: deleteAllUniversityEmails,
 };
+
 
 export const advisorAPI = {
   getStudents: getStudents,
