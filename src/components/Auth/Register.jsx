@@ -1,9 +1,8 @@
-// src/components/Auth/Register.jsx
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEnvelope, FaLock, FaUser, FaGraduationCap, FaArrowRight, FaRobot, FaUniversity, FaBook, FaPhone, FaTelegram, FaChartLine } from "react-icons/fa";
+import { FaEnvelope, FaLock, FaUser, FaGraduationCap, FaArrowRight, FaRobot, FaUniversity, FaBook, FaPhone, FaTelegram, FaChartLine, FaSpinner } from "react-icons/fa";
 import toast from "react-hot-toast";
-import { register, getUniversityEmails } from "../../services/api";
+import { register, getUniversityEmails, validateUniversityEmail } from "../../services/api";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -12,6 +11,8 @@ const Register = () => {
   const [universityEmails, setUniversityEmails] = useState([]);
   const [customEmail, setCustomEmail] = useState('');
   const [showCustomEmail, setShowCustomEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [validatingEmail, setValidatingEmail] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -19,7 +20,7 @@ const Register = () => {
     universityEmail: "",
     password: "",
     confirmPassword: "",
-    role: "student",
+    role: "Student",
     department: "",
     academicLevel: 1,
     gpa: 0,
@@ -43,7 +44,6 @@ const Register = () => {
     "BioInformatics",
   ];
 
-  // جلب الإيميلات الجامعية المسموحة
   useEffect(() => {
     const fetchUniversityEmails = async () => {
       try {
@@ -64,14 +64,50 @@ const Register = () => {
     setFormData({ ...formData, universityEmail: email });
     setShowCustomEmail(false);
     setCustomEmail('');
+    setEmailError('');
   };
 
   const handleCustomEmail = () => {
     if (customEmail && customEmail.includes('@')) {
       setFormData({ ...formData, universityEmail: customEmail });
       setShowCustomEmail(false);
+      setEmailError('');
     } else {
       toast.error('Please enter a valid email');
+    }
+  };
+
+  const checkUniversityEmail = async (email) => {
+    if (!email) return false;
+    
+    setValidatingEmail(true);
+    setEmailError('');
+    
+    try {
+      const response = await validateUniversityEmail(email);
+      if (response.data?.valid === true) {
+        setEmailError('');
+        return true;
+      } else {
+        const msg = '❌ هذا الإيميل الجامعي غير مسجل في نظامنا. يرجى التسجيل أولاً أو التواصل مع الإدارة.';
+        setEmailError(msg);
+        toast.error(msg);
+        return false;
+      }
+    } catch (err) {
+      console.error('Validation error:', err);
+      const msg = '⚠️ حدث خطأ في التحقق من الإيميل، حاول مرة أخرى.';
+      setEmailError(msg);
+      toast.error(msg);
+      return false;
+    } finally {
+      setValidatingEmail(false);
+    }
+  };
+
+  const handleEmailBlur = async () => {
+    if (formData.universityEmail) {
+      await checkUniversityEmail(formData.universityEmail);
     }
   };
 
@@ -95,8 +131,14 @@ const Register = () => {
     
     setLoading(true);
     
+    const isValid = await checkUniversityEmail(formData.universityEmail);
+    if (!isValid) {
+      toast.error("البريد الجامعي غير معتمد. لا يمكن إتمام التسجيل.");
+      setLoading(false);
+      return;
+    }
+    
     try {
-      // تسجيل مستخدم جديد فقط (بدون تسجيل دخول تلقائي)
       const registerResponse = await register({
         fullName: formData.fullName,
         email: formData.email,
@@ -116,11 +158,18 @@ const Register = () => {
         toast.success("Registration successful! Please login.");
         navigate("/login");
       } else {
-        toast.error(registerResponse.data?.error || "Registration failed");
+        const errorMsg = registerResponse.data?.error || "Registration failed";
+        toast.error(errorMsg);
       }
     } catch (err) {
       console.error("Registration error:", err);
-      toast.error(err.response?.data?.error || "Registration failed");
+      let errorMsg = err.response?.data?.error || "Registration failed";
+      if (errorMsg.toLowerCase().includes("email") && errorMsg.toLowerCase().includes("exist")) {
+        errorMsg = "هذا البريد الإلكتروني مسجل بالفعل. يرجى استخدام بريد آخر أو تسجيل الدخول.";
+      } else if (errorMsg.toLowerCase().includes("university email")) {
+        errorMsg = "البريد الجامعي غير صالح أو غير مسجل مسبقًا.";
+      }
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -188,6 +237,7 @@ const Register = () => {
                       handleEmailSelect(e.target.value);
                     }
                   }}
+                  onBlur={handleEmailBlur}
                   className="w-full pl-10 pr-4 py-3 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/50 appearance-none"
                   disabled={loading}
                 >
@@ -203,13 +253,27 @@ const Register = () => {
                     type="email"
                     value={customEmail}
                     onChange={(e) => setCustomEmail(e.target.value)}
+                    onBlur={async () => {
+                      if (customEmail && customEmail.includes('@')) {
+                        setFormData({ ...formData, universityEmail: customEmail });
+                        await checkUniversityEmail(customEmail);
+                      }
+                    }}
                     placeholder="Enter your university email"
                     className="flex-1 pl-10 pr-4 py-3 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/50"
                     disabled={loading}
                   />
                   <button
                     type="button"
-                    onClick={handleCustomEmail}
+                    onClick={async () => {
+                      if (customEmail && customEmail.includes('@')) {
+                        setFormData({ ...formData, universityEmail: customEmail });
+                        const isValid = await checkUniversityEmail(customEmail);
+                        if (isValid) setShowCustomEmail(false);
+                      } else {
+                        toast.error('Please enter a valid email');
+                      }
+                    }}
                     className="px-3 py-2 bg-purple-600 text-white rounded-xl text-sm"
                   >
                     Add
@@ -219,6 +283,7 @@ const Register = () => {
                     onClick={() => {
                       setShowCustomEmail(false);
                       setCustomEmail('');
+                      setEmailError('');
                     }}
                     className="px-3 py-2 bg-gray-500 text-white rounded-xl text-sm"
                   >
@@ -227,6 +292,16 @@ const Register = () => {
                 </div>
               )}
             </div>
+            {emailError && (
+              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                <span>⚠️</span> {emailError}
+              </p>
+            )}
+            {validatingEmail && !emailError && (
+              <p className="text-purple-500 text-xs mt-1 flex items-center gap-1">
+                <FaSpinner className="animate-spin" /> Checking email...
+              </p>
+            )}
           </div>
 
           <div>

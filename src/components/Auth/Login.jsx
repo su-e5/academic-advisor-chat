@@ -8,7 +8,7 @@ import {
   FaArrowRight,
   FaRobot,
 } from "react-icons/fa";
-
+import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 
 const Login = () => {
@@ -16,7 +16,6 @@ const Login = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -24,6 +23,7 @@ const Login = () => {
     e.preventDefault();
 
     if (!email || !password) {
+      toast.error("الرجاء إدخال البريد الإلكتروني وكلمة المرور");
       return;
     }
 
@@ -31,8 +31,20 @@ const Login = () => {
 
     try {
       await login(email, password);
+      // في حالة النجاح، useAuth ستقوم بالتوجيه تلقائيًا
     } catch (err) {
-      console.error(err);
+      console.error("Login error:", err);
+      
+      // رسائل مخصصة حسب نوع الخطأ
+      if (err.response?.status === 401) {
+        toast.error("❌ البريد الإلكتروني أو كلمة المرور غير صحيحة، أو المستخدم غير مسجل");
+      } else if (err.response?.data?.error?.toLowerCase().includes("not found")) {
+        toast.error("❌ هذا المستخدم غير مسجل في قاعدة البيانات. يرجى إنشاء حساب أولاً.");
+      } else if (err.response?.data?.message?.toLowerCase().includes("not found")) {
+        toast.error("❌ المستخدم غير موجود. يرجى التسجيل.");
+      } else {
+        toast.error(err.response?.data?.error || "فشل تسجيل الدخول، حاول مرة أخرى");
+      }
     } finally {
       setLoading(false);
     }
@@ -99,11 +111,7 @@ const Login = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-500"
               >
-                {showPassword ? (
-                  <FaEyeSlash size={18} />
-                ) : (
-                  <FaEye size={18} />
-                )}
+                {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
               </button>
             </div>
           </div>

@@ -1,8 +1,10 @@
-// src/components/Advisor/StudentsList.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaComments, FaBell, FaUserGraduate, FaSpinner, FaFilter } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+
+// ✅ تأكد من استخدام الـ base URL الصحيح للـ API
+const API_BASE_URL = 'http://localhost:3000'; // غيّر حسب إعداداتك
 
 const StudentsList = () => {
   const [students, setStudents] = useState([]);
@@ -19,74 +21,84 @@ const StudentsList = () => {
     { value: 4, label: 'Level 4' },
   ];
 
-  // جلب الطلاب
+  // جلب الطلاب مع تحسين رسائل الخطأ
   const fetchStudents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/Advisor/students', {
+      if (!token) {
+        toast.error('❌ لم يتم العثور على رمز المصادقة. يرجى تسجيل الدخول.');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/Advisor/students`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setStudents(data);
-        
-        const counts = {};
-        for (const student of data) {
-          const saved = localStorage.getItem(`unread_${student.id}`);
-          counts[student.id] = saved ? parseInt(saved) : 0;
-        }
-        setUnreadCounts(counts);
+
+      if (response.status === 401) {
+        toast.error('❌ أنت غير مصرح لك بجلب بيانات الطلاب. يرجى تسجيل الدخول مرة أخرى.');
+        localStorage.removeItem('token');
+        navigate('/login');
+        return;
       }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setStudents(data);
+
+      const counts = {};
+      for (const student of data) {
+        const saved = localStorage.getItem(`unread_${student.id}`);
+        counts[student.id] = saved ? parseInt(saved) : 0;
+      }
+      setUnreadCounts(counts);
     } catch (err) {
-      console.error('Error:', err);
-      toast.error('Failed to load students');
+      console.error('Error fetching students:', err);
+      toast.error('⚠️ فشل تحميل قائمة الطلاب. تأكد من اتصال السيرفر الخلفي.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
+  // جلب عدد الرسائل غير المقروءة من API
+  const fetchUnreadFromAPI = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || students.length === 0) return;
 
+    const newCounts = { ...unreadCounts };
+    console.log("🔄 Checking for new messages from API...");
 
+    for (const student of students) {
+      try {
+        const convRes = await fetch(`${API_BASE_URL}/api/Advisor/students/${student.id}/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-  
-  // ✅ جلب عدد الرسائل مباشرة من الـ API
- // ✅ استبدلي fetchUnreadFromAPI بهذا الكود
-const fetchUnreadFromAPI = useCallback(async () => {
-  const token = localStorage.getItem('token');
-  const newCounts = { ...unreadCounts };
-  
-  console.log("🔄 Checking for new messages from API...");
-  
-  for (const student of students) {
-    try {
-      // جلب عدد رسائل الطالب من الـ API
-      const convRes = await fetch(`/api/Advisor/students/${student.id}/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (convRes.ok) {
+        if (convRes.status === 401) continue;
+        if (!convRes.ok) continue;
+
         const conversations = await convRes.json();
         let totalStudentMessages = 0;
-        
+
         for (const conv of conversations) {
-          const convDetailRes = await fetch(`/api/Advisor/conversations/${conv.id}`, {
+          const convDetailRes = await fetch(`${API_BASE_URL}/api/Advisor/conversations/${conv.id}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (convDetailRes.ok) {
             const convDetail = await convDetailRes.json();
-            const studentMsgCount = convDetail.messages?.filter(m => 
+            const studentMsgCount = convDetail.messages?.filter(m =>
               (m.sender === 'Student' || m.senderId === 'student')
             ).length || 0;
             totalStudentMessages += studentMsgCount;
           }
         }
-        
-        // ✅ تحديث العداد
+
         const savedCount = localStorage.getItem(`student_messages_${student.id}`);
         const prevCount = savedCount ? parseInt(savedCount) : 0;
-        
-        // ✅ إذا فيه رسائل جديدة
+
         if (totalStudentMessages > prevCount) {
           const newUnread = totalStudentMessages - prevCount;
           const currentUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
@@ -94,46 +106,41 @@ const fetchUnreadFromAPI = useCallback(async () => {
           localStorage.setItem(`unread_${student.id}`, newTotal.toString());
           newCounts[student.id] = newTotal;
           console.log(`🔔 New message for ${student.fullName}! +${newUnread} (total: ${newTotal})`);
-          
-          // ✅ إشعار مرئي
           toast.success(`📩 New message from ${student.fullName}!`, {
             duration: 3000,
             position: 'top-right',
             icon: '🔔'
           });
         } else {
-          // ✅ جلب القيمة المخزنة
           const storedUnread = parseInt(localStorage.getItem(`unread_${student.id}`) || '0');
           newCounts[student.id] = storedUnread;
         }
-        
+
         localStorage.setItem(`student_messages_${student.id}`, totalStudentMessages.toString());
+      } catch (err) {
+        console.error(`Error checking student ${student.id}:`, err);
       }
-    } catch (err) {
-      console.error(`Error checking student ${student.id}:`, err);
     }
-  }
-  
-  setUnreadCounts(newCounts);
-}, [students, unreadCounts]);
+
+    setUnreadCounts(newCounts);
+  }, [students, unreadCounts]);
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const initialize = async () => {
       if (!isMounted) return;
       await fetchStudents();
     };
-    
+
     initialize();
-    
-    // تحديث كل 5 ثواني من الـ API مباشرة
+
     const interval = setInterval(() => {
       if (isMounted && students.length > 0) {
         fetchUnreadFromAPI();
       }
     }, 5000);
-    
+
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -146,8 +153,8 @@ const fetchUnreadFromAPI = useCallback(async () => {
     navigate(`/advisor/chat/${studentId}`);
   };
 
-  const filteredStudents = filterLevel === 'all' 
-    ? students 
+  const filteredStudents = filterLevel === 'all'
+    ? students
     : students.filter(s => s.academicLevel === filterLevel);
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
