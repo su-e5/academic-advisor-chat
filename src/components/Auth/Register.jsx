@@ -1,18 +1,17 @@
-import { useState, useEffect } from "react";
+// src/components/Auth/Register.jsx
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaEnvelope, FaLock, FaUser, FaGraduationCap, FaArrowRight, FaRobot, FaUniversity, FaBook, FaPhone, FaTelegram, FaChartLine, FaSpinner } from "react-icons/fa";
+import { FaEnvelope, FaLock, FaUser, FaGraduationCap, FaArrowRight, FaRobot, FaUniversity, FaBook, FaPhone, FaTelegram, FaChartLine, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import toast from "react-hot-toast";
-import { register, getUniversityEmails, validateUniversityEmail } from "../../services/api";
+import { register } from "../../services/api";
+import axios from "axios";
 
 const Register = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [universityEmails, setUniversityEmails] = useState([]);
-  const [customEmail, setCustomEmail] = useState('');
-  const [showCustomEmail, setShowCustomEmail] = useState(false);
-  const [emailError, setEmailError] = useState('');
   const [validatingEmail, setValidatingEmail] = useState(false);
+  const [emailValid, setEmailValid] = useState(null); // null = not checked, true/false
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -20,7 +19,7 @@ const Register = () => {
     universityEmail: "",
     password: "",
     confirmPassword: "",
-    role: "Student",
+    role: "student",
     department: "",
     academicLevel: 1,
     gpa: 0,
@@ -44,70 +43,40 @@ const Register = () => {
     "BioInformatics",
   ];
 
-  useEffect(() => {
-    const fetchUniversityEmails = async () => {
-      try {
-        const response = await getUniversityEmails();
-        setUniversityEmails(response.data || []);
-      } catch (err) {
-        console.error('Error fetching university emails:', err);
-      }
-    };
-    fetchUniversityEmails();
-  }, []);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleEmailSelect = (email) => {
-    setFormData({ ...formData, universityEmail: email });
-    setShowCustomEmail(false);
-    setCustomEmail('');
-    setEmailError('');
-  };
-
-  const handleCustomEmail = () => {
-    if (customEmail && customEmail.includes('@')) {
-      setFormData({ ...formData, universityEmail: customEmail });
-      setShowCustomEmail(false);
-      setEmailError('');
-    } else {
-      toast.error('Please enter a valid email');
+  // Validate university email using the actual backend endpoint
+  const validateUniversityEmail = async (email) => {
+    if (!email || !email.includes('@')) {
+      setEmailValid(false);
+      return false;
     }
-  };
-
-  const checkUniversityEmail = async (email) => {
-    if (!email) return false;
-    
     setValidatingEmail(true);
-    setEmailError('');
-    
     try {
-      const response = await validateUniversityEmail(email);
-      if (response.data?.valid === true) {
-        setEmailError('');
-        return true;
-      } else {
-        const msg = '❌ هذا الإيميل الجامعي غير مسجل في نظامنا. يرجى التسجيل أولاً أو التواصل مع الإدارة.';
-        setEmailError(msg);
-        toast.error(msg);
-        return false;
-      }
-    } catch (err) {
-      console.error('Validation error:', err);
-      const msg = '⚠️ حدث خطأ في التحقق من الإيميل، حاول مرة أخرى.';
-      setEmailError(msg);
-      toast.error(msg);
+      const response = await axios.post('https://siraj.runasp.net/api/public/validate-university-email', { email });
+      const isValid = response.data.valid === true;
+      setEmailValid(isValid);
+      if (!isValid) toast.error("This university email is not approved");
+      return isValid;
+    } catch (error) {
+      console.error("Validation error:", error);
+      setEmailValid(false);
+      toast.error("Email validation service unavailable");
       return false;
     } finally {
       setValidatingEmail(false);
     }
   };
 
-  const handleEmailBlur = async () => {
-    if (formData.universityEmail) {
-      await checkUniversityEmail(formData.universityEmail);
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Reset validation when university email changes
+    if (e.target.name === "universityEmail") {
+      setEmailValid(null);
+    }
+  };
+
+  const handleBlurUniversityEmail = async () => {
+    if (formData.universityEmail && !emailValid) {
+      await validateUniversityEmail(formData.universityEmail);
     }
   };
 
@@ -128,17 +97,18 @@ const Register = () => {
       toast.error("University email is required");
       return;
     }
-    
-    setLoading(true);
-    
-    const isValid = await checkUniversityEmail(formData.universityEmail);
+
+    // Validate university email again before submission
+    const isValid = await validateUniversityEmail(formData.universityEmail);
     if (!isValid) {
-      toast.error("البريد الجامعي غير معتمد. لا يمكن إتمام التسجيل.");
-      setLoading(false);
+      toast.error("Please enter a valid approved university email");
       return;
     }
     
+    setLoading(true);
+    
     try {
+      // Call the registration API (assuming register function is properly configured)
       const registerResponse = await register({
         fullName: formData.fullName,
         email: formData.email,
@@ -158,18 +128,11 @@ const Register = () => {
         toast.success("Registration successful! Please login.");
         navigate("/login");
       } else {
-        const errorMsg = registerResponse.data?.error || "Registration failed";
-        toast.error(errorMsg);
+        toast.error(registerResponse.data?.error || "Registration failed");
       }
     } catch (err) {
       console.error("Registration error:", err);
-      let errorMsg = err.response?.data?.error || "Registration failed";
-      if (errorMsg.toLowerCase().includes("email") && errorMsg.toLowerCase().includes("exist")) {
-        errorMsg = "هذا البريد الإلكتروني مسجل بالفعل. يرجى استخدام بريد آخر أو تسجيل الدخول.";
-      } else if (errorMsg.toLowerCase().includes("university email")) {
-        errorMsg = "البريد الجامعي غير صالح أو غير مسجل مسبقًا.";
-      }
-      toast.error(errorMsg);
+      toast.error(err.response?.data?.error || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -189,6 +152,7 @@ const Register = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
             <div className="relative group">
@@ -206,6 +170,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* Personal Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Personal Email</label>
             <div className="relative group">
@@ -223,87 +188,34 @@ const Register = () => {
             </div>
           </div>
 
+          {/* University Email with validation */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">University Email</label>
             <div className="relative group">
               <FaUniversity className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              {!showCustomEmail ? (
-                <select
-                  value={formData.universityEmail}
-                  onChange={(e) => {
-                    if (e.target.value === '__custom__') {
-                      setShowCustomEmail(true);
-                    } else {
-                      handleEmailSelect(e.target.value);
-                    }
-                  }}
-                  onBlur={handleEmailBlur}
-                  className="w-full pl-10 pr-4 py-3 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/50 appearance-none"
-                  disabled={loading}
-                >
-                  <option value="">Select university email</option>
-                  {universityEmails.map((email) => (
-                    <option key={email.id} value={email.email}>{email.email}</option>
-                  ))}
-                  <option value="__custom__">+ Add custom email</option>
-                </select>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={customEmail}
-                    onChange={(e) => setCustomEmail(e.target.value)}
-                    onBlur={async () => {
-                      if (customEmail && customEmail.includes('@')) {
-                        setFormData({ ...formData, universityEmail: customEmail });
-                        await checkUniversityEmail(customEmail);
-                      }
-                    }}
-                    placeholder="Enter your university email"
-                    className="flex-1 pl-10 pr-4 py-3 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/50"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (customEmail && customEmail.includes('@')) {
-                        setFormData({ ...formData, universityEmail: customEmail });
-                        const isValid = await checkUniversityEmail(customEmail);
-                        if (isValid) setShowCustomEmail(false);
-                      } else {
-                        toast.error('Please enter a valid email');
-                      }
-                    }}
-                    className="px-3 py-2 bg-purple-600 text-white rounded-xl text-sm"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCustomEmail(false);
-                      setCustomEmail('');
-                      setEmailError('');
-                    }}
-                    className="px-3 py-2 bg-gray-500 text-white rounded-xl text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
+              <input
+                type="email"
+                name="universityEmail"
+                value={formData.universityEmail}
+                onChange={handleChange}
+                onBlur={handleBlurUniversityEmail}
+                className="w-full pl-10 pr-12 py-3 border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/50"
+                placeholder="student@university.edu"
+                required
+                disabled={loading || validatingEmail}
+              />
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                {validatingEmail && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-500"></div>}
+                {emailValid === true && <FaCheckCircle className="text-green-500" />}
+                {emailValid === false && <FaTimesCircle className="text-red-500" />}
+              </div>
             </div>
-            {emailError && (
-              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                <span>⚠️</span> {emailError}
-              </p>
-            )}
-            {validatingEmail && !emailError && (
-              <p className="text-purple-500 text-xs mt-1 flex items-center gap-1">
-                <FaSpinner className="animate-spin" /> Checking email...
-              </p>
-            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Must be a valid university email approved by the system
+            </p>
           </div>
 
+          {/* Department */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
             <div className="relative group">
@@ -324,6 +236,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* Academic Level */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Academic Level</label>
             <div className="relative group">
@@ -343,6 +256,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* GPA */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">GPA (0.0 - 4.0)</label>
             <div className="relative group">
@@ -362,6 +276,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* Phone Number */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number (WhatsApp)</label>
             <div className="relative group">
@@ -378,6 +293,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* Telegram Username */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Telegram Username</label>
             <div className="relative group">
@@ -394,6 +310,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
             <div className="relative group">
@@ -418,6 +335,7 @@ const Register = () => {
             </div>
           </div>
 
+          {/* Confirm Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
             <div className="relative group">
@@ -437,7 +355,7 @@ const Register = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || validatingEmail || emailValid === false}
             className="group relative w-full py-3 bg-gradient-to-r from-purple-600 via-purple-500 to-violet-600 text-white rounded-xl font-semibold overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 disabled:opacity-50"
           >
             <span className="relative flex items-center justify-center gap-2">

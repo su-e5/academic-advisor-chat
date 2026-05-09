@@ -8,7 +8,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://siraj.runasp.net',
+        target: 'https://siraj.runasp.net',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api')
       }

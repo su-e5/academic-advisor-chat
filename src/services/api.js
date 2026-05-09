@@ -150,9 +150,4 @@ export const advisorAPI = {
   getStudentsWithSubmittedForms: getStudentsWithSubmittedForms,
 };
 
-
-// ==================== PUBLIC ====================
-// ✅ دالة التحقق من صحة الإيميل الجامعي
-export const validateUniversityEmail = (email) => api.post('/public/validate-university-email', { email });
-
 export default api;
